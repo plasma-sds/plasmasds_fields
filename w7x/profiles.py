@@ -8,13 +8,13 @@ class Points(object):
 
 
 class FluxSurface(object):
-    def __init__(self, x1, x2, x3, phi0, density=0, density_inner_island=0):
+    def __init__(self, x1, x2, x3, phi0, density=0, assymetric_island_density=0):
         self.points = Points(x1, x2, x3)
         self.phi0 = phi0
         self.density = density
-        self.density_inner_island = density_inner_island
+        self.assymetric_island_density = assymetric_island_density
 
-    def update_density(self, value, density_inner_island=None):
+    def update_density(self, value, assymetric_island_density=None):
         self.density = value
-        if density_inner_island is not None:
-            self.density_inner_island = density_inner_island
+        if assymetric_island_density is not None:
+            self.assymetric_island_density = assymetric_island_density
