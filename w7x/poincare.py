@@ -1,5 +1,6 @@
 import numpy as np
 import xml.etree.ElementTree as ET
+import matplotlib.pyplot as plt
 
 class Points(object):
     """
@@ -141,3 +142,68 @@ def load_w7x_flux_surfaces(filename):
         surfaces.append(surface)
 
     return surfaces
+
+def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=None, s_range=None, phi=np.nan, boxes=None, aspect=False):
+    """
+    Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
+
+    Parameters
+    ----------
+    surfaces : list of FluxSurface or field-line-tracer result
+        Either a list of :class:`FluxSurface` instances (as returned by
+        :func:`load_w7x_flux_surfaces`) or a field-line-tracer result
+        object exposing ``poincare_res.surfs``.
+    magnetic_conf : str, optional
+        Name of the applied magnetic configuration, used in the title.
+    r_range, z_range : list of float, optional
+        Two-element ``[min, max]`` lists used to set the R and z axis
+        limits. If ``None`` (default), matplotlib chooses automatically.
+    s_range : optional
+        Reserved for future use.
+    phi : float, optional
+        Toroidal angle (in radians) at which the Poincaré section was
+        generated. Used in the title.
+    boxes : iterable of 4-tuples, optional
+        Box coordinates ``(x0, y0, x1, y1)`` to be overlaid on the plot.
+    aspect : bool, optional
+        If ``True``, use an equal aspect ratio. Otherwise, use the
+        matplotlib default.
+    """
+    if not isinstance(surfaces, list):
+        surfaces = surfaces.poincare_res.surfs
+
+    colors = ["red", "orange", "yellow", "green", "blue", "purple", "indigo", "violet"]
+    fig, ax = plt.subplots()
+
+    num_surfaces = len(surfaces)
+
+    for i, surface in enumerate(surfaces):
+        if surface.points.x1 is not None and len(surface.points.x1) > 0:
+            r = np.sqrt(np.array(surface.points.x1)**2 + np.array(surface.points.x2)**2)
+            z = np.array(surface.points.x3)
+            ax.scatter(r, z, color=colors[i % 8], s=0.2, label="surface {}".format(i))
+        else:
+            print("Surface {} contains no points!".format(i + 1))
+
+    ax.set_xlabel("R [m]")
+    ax.set_ylabel("z [m]")
+
+    if isinstance(r_range, list):
+        ax.set_xlim(r_range)
+
+    if isinstance(z_range, list):
+        ax.set_ylim(z_range)
+
+    if num_surfaces < 30:
+        ax.legend()  # too cluttered for many surfaces
+
+    if aspect:
+        ax.set_aspect('equal')
+    ax.set_title("Config: {}, toroidal angle: {:3.2f} rad, {:3.2f} deg.".format(magnetic_conf, phi, phi/np.pi*180.))
+
+    if boxes:
+        for box in boxes:
+            x, y = box_plot_coordinates(box[0], box[1], box[2], box[3])
+            ax.plot(x, y)
+
+    plt.show()
