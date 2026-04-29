@@ -143,6 +143,31 @@ def load_w7x_flux_surfaces(filename):
 
     return surfaces
 
+def box_plot_coordinates(r_min, z_min, r_max, z_max):
+    """
+    Build the polyline coordinates of an axis-aligned rectangle.
+
+    The returned arrays describe the four corners of the rectangle in the
+    (R, z) plane, closed back to the starting point so that
+    ``ax.plot(r, z)`` draws a complete outline.
+
+    Parameters
+    ----------
+    r_min, z_min : float
+        Lower-left corner of the box.
+    r_max, z_max : float
+        Upper-right corner of the box.
+
+    Returns
+    -------
+    r, z : numpy.ndarray
+        Five-element arrays of corner coordinates, with the first point
+        repeated at the end to close the rectangle.
+    """
+    r = np.array([r_min, r_max, r_max, r_min, r_min])
+    z = np.array([z_min, z_min, z_max, z_max, z_min])
+    return r, z
+
 def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=None, s_range=None, phi=np.nan, boxes=None, aspect=False):
     """
     Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
@@ -203,7 +228,7 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=Non
 
     if boxes:
         for box in boxes:
-            x, y = box_plot_coordinates(box[0], box[1], box[2], box[3])
-            ax.plot(x, y)
+            r, z = box_plot_coordinates(box[0], box[1], box[2], box[3])
+            ax.plot(r, z)
 
     plt.show()
