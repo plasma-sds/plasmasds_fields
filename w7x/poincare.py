@@ -168,7 +168,7 @@ def box_plot_coordinates(r_min, z_min, r_max, z_max):
     z = np.array([z_min, z_min, z_max, z_max, z_min])
     return r, z
 
-def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=None, s_range=None, phi=np.nan, boxes=None, aspect=False):
+def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=None, phi=np.nan, boxes=None, aspect=False, save_image=False):
     """
     Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
 
@@ -193,6 +193,11 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=Non
     aspect : bool, optional
         If ``True``, use an equal aspect ratio. Otherwise, use the
         matplotlib default.
+    save_image : bool or str, optional
+        If ``False`` (default), the figure is not saved to disk. Otherwise
+        the value is interpreted as the destination filename and the
+        figure is written as a PNG (a ``.png`` extension is appended if
+        missing).
     """
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
@@ -230,5 +235,11 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=Non
         for box in boxes:
             r, z = box_plot_coordinates(box[0], box[1], box[2], box[3])
             ax.plot(r, z)
+
+    if save_image:
+        save_filename = str(save_image)
+        if not save_filename.lower().endswith('.png'):
+            save_filename = save_filename + '.png'
+        fig.savefig(save_filename, format='png', dpi=300, bbox_inches="tight")
 
     plt.show()
