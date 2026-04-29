@@ -168,7 +168,7 @@ def box_plot_coordinates(r_min, z_min, r_max, z_max):
     z = np.array([z_min, z_min, z_max, z_max, z_min])
     return r, z
 
-def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=None, phi=np.nan, boxes=None, aspect=False, save_image=False):
+def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=None, phi=np.nan, boxes=None, aspect=False, save_image=False, legend=False):
     """
     Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
 
@@ -224,8 +224,8 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=Non
     if isinstance(z_range, list):
         ax.set_ylim(z_range)
 
-    if num_surfaces < 30:
-        ax.legend()  # too cluttered for many surfaces
+    if legend:
+        ax.legend()  
 
     if aspect:
         ax.set_aspect('equal')
