@@ -6,6 +6,12 @@ class Points(object):
         self.x2 = np.array(x2)
         self.x3 = np.array(x3)
 
+    def __array__(self, dtype=None):
+        arr = np.array([self.x1, self.x2, self.x3])
+        if dtype is not None:
+            arr = arr.astype(dtype)
+        return arr
+
 
 class FluxSurface(object):
     def __init__(self, x1, x2, x3, phi0, density=0, assymetric_island_density=0):
