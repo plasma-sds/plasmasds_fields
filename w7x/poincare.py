@@ -243,3 +243,53 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=Non
         fig.savefig(save_filename, format='png', dpi=300, bbox_inches="tight")
 
     plt.show()
+
+def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
+
+    # Extract surfaces list
+    if not isinstance(flt, list):
+        surfs = flt.poincare_res.surfs
+    else:
+        surfs = flt
+    
+    # Apply surface range filter first
+    if surf_range is not None:
+        num_surfs = len(surfs)
+        start_idx = max(0, surf_range[0])
+        end_idx = min(num_surfs, surf_range[1])
+        surfs = surfs[start_idx:end_idx]
+    
+    filtered_surfs = []
+    
+    for surf in surfs:
+        if type(surf.points.x1) != type(None) and len(surf.points.x1) > 0:
+            # Calculate R and Z coordinates
+            r_temp = np.sqrt(np.array(surf.points.x1)**2 + np.array(surf.points.x2)**2)
+            z_temp = np.array(surf.points.x3)
+            
+            # Create masks for filtering
+            if r_range is not None:
+                r_mask = (r_temp >= r_range[0]) & (r_temp <= r_range[1])
+            else:
+                r_mask = np.ones(len(r_temp), dtype=bool)
+            
+            if z_range is not None:
+                z_mask = (z_temp >= z_range[0]) & (z_temp <= z_range[1])
+            else:
+                z_mask = np.ones(len(z_temp), dtype=bool)
+            
+            # Keep only points within both ranges
+            mask = r_mask & z_mask
+            
+            # Only include surface if it has at least one point within the ranges
+            if np.any(mask):
+                # Filter the points
+                x1_filtered = np.array(surf.points.x1)[mask].tolist()
+                x2_filtered = np.array(surf.points.x2)[mask].tolist()
+                x3_filtered = np.array(surf.points.x3)[mask].tolist()
+                
+                # Create new filtered surface
+                filtered_surf = FluxSurface(x1_filtered, x2_filtered, x3_filtered, surf.phi0, surf.density, surf.assymetric_island_density)
+                filtered_surfs.append(filtered_surf)
+    
+    return filtered_surfs
