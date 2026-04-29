@@ -245,8 +245,42 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', r_range=None, z_range=Non
     plt.show()
 
 def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
+    """
+    Filter flux surfaces and their points by surface index and (R, z) range.
 
-    # Extract surfaces list
+    The input may be either a list of :class:`FluxSurface` instances (as
+    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
+    result object exposing ``poincare_res.surfs``. The function first
+    selects a contiguous slice of surfaces (``surf_range``), then for each
+    remaining surface keeps only the points whose cylindrical
+    ``R = sqrt(x1**2 + x2**2)`` and ``z = x3`` fall within the supplied
+    ranges. Surfaces left with no points are dropped.
+
+    Parameters
+    ----------
+    flt : list of FluxSurface or field-line-tracer result
+        Source surfaces to filter.
+    surf_range : sequence of int, optional
+        Two-element ``[start, end]`` slice (Python half-open semantics)
+        applied to the list of surfaces before point filtering. Bounds
+        are clamped to the valid range. If ``None`` (default), all
+        surfaces are kept.
+    r_range : sequence of float, optional
+        Two-element ``[min, max]`` interval (in metres) on the major
+        radius ``R``. If ``None`` (default), no constraint on ``R``.
+    z_range : sequence of float, optional
+        Two-element ``[min, max]`` interval (in metres) on the vertical
+        coordinate ``z``. If ``None`` (default), no constraint on ``z``.
+
+    Returns
+    -------
+    list of FluxSurface
+        New :class:`FluxSurface` instances containing only the points
+        that pass both the ``R`` and ``z`` filters. ``phi0``, ``density``
+        and ``assymetric_island_density`` are copied from the originals.
+        Surfaces that end up empty (or that started empty / had ``None``
+        coordinates) are omitted from the result.
+    """
     if not isinstance(flt, list):
         surfs = flt.poincare_res.surfs
     else:
