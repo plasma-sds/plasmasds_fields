@@ -1,9 +1,11 @@
 import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib.colors import LogNorm
 
 
 def contour_density(R, Z, density, r_range=None, z_range=None, levels=None, filled=True,
 log=False, cmap=None, ax=None, colorbar=True, cbar_label="Density [m^-3]",
-equal_aspect=True, title="W7X 2D density plot", output_path=None):
+equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=None):
 
     """
     Contour-plot a density field on the (R, Z) plane.
@@ -59,7 +61,11 @@ equal_aspect=True, title="W7X 2D density plot", output_path=None):
     title : str, optional
         Axes title, drawn in bold. Defaults to ``"W7X 2D density plot"``;
         set to ``None`` or ``""`` to omit.
-    output_path : str or path-like, optional
+    contour_lines : bool, default False
+        If ``True``, overlay thin black contour lines on top of the
+        plot at the same levels as the (filled) contours, marking the
+        level boundaries explicitly.
+    save_image : str or path-like, optional
         If given, the figure is saved to this path via
         :func:`matplotlib.figure.Figure.savefig` before any interactive
         display. The format is inferred from the extension; pass a
@@ -72,8 +78,7 @@ equal_aspect=True, title="W7X 2D density plot", output_path=None):
         customization such as adding a custom colorbar). Use
         ``cs.axes`` to retrieve the underlying axes.
     """
-    import matplotlib.pyplot as plt
-    from matplotlib.colors import LogNorm
+
 
     R = np.asarray(R)
     Z = np.asarray(Z)
@@ -132,6 +137,10 @@ equal_aspect=True, title="W7X 2D density plot", output_path=None):
         plotter = ax.tricontourf if filled else ax.tricontour
     cs = plotter(R, Z, density, **contour_kwargs)
 
+    if contour_lines:
+        line_plotter = ax.contour if is_regular else ax.tricontour
+        line_plotter(R, Z, density, levels=cs.levels, colors="black", linewidths=0.5)
+
     ax.set_xlabel("R [m]", fontweight="bold")
     ax.set_ylabel("Z [m]", fontweight="bold")
     if equal_aspect:
@@ -152,8 +161,8 @@ equal_aspect=True, title="W7X 2D density plot", output_path=None):
         cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
         cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
 
-    if output_path is not None:
-        ax.figure.savefig(output_path, bbox_inches="tight")
+    if save_image is not None:
+        ax.figure.savefig(save_image, bbox_inches="tight")
 
     if created_fig:
         plt.show()
