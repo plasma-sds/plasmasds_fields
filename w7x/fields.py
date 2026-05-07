@@ -209,7 +209,7 @@ def extract_density_and_points(flt, r_range=None, z_range=None):
     )
 
 
-def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005, bottom_value=1e17, 
+def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005, bottom_value=1e16, 
 r_limits=None, z_limits=None, method="linear", fill_with_nearest=True):
     """
     Interpolate scattered ``(r, z, density)`` data onto a regular grid.
