@@ -1,20 +1,9 @@
 import numpy as np
 
 
-def contour_density(
-    R,
-    Z,
-    density,
-    r_range=None,
-    z_range=None,
-    levels=None,
-    filled=True,
-    log=False,
-    cmap=None,
-    ax=None,
-    colorbar=True,
-    cbar_label="density",
-):
+def contour_density(R, Z, density, r_range=None, z_range=None, levels=None, filled=True, 
+log=False, cmap=None, ax=None, colorbar=True, cbar_label="density"):
+
     """
     Contour-plot a density field on the (R, Z) plane.
 
