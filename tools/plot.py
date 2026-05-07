@@ -1,8 +1,9 @@
 import numpy as np
 
 
-def contour_density(R, Z, density, r_range=None, z_range=None, levels=None, filled=True, 
-log=False, cmap=None, ax=None, colorbar=True, cbar_label="density"):
+def contour_density(R, Z, density, r_range=None, z_range=None, levels=None, filled=True,
+log=False, cmap=None, ax=None, colorbar=True, cbar_label="Density [m^-3]",
+equal_aspect=True, title="W7X 2D density plot", output_path=None):
 
     """
     Contour-plot a density field on the (R, Z) plane.
@@ -51,6 +52,18 @@ log=False, cmap=None, ax=None, colorbar=True, cbar_label="density"):
         If ``True``, attach a colorbar to ``ax``.
     cbar_label : str, optional
         Label for the colorbar. Set to ``None`` or ``""`` to omit.
+    equal_aspect : bool, default True
+        If ``True``, force ``ax.set_aspect("equal")`` so R and Z share
+        the same scale. Set to ``False`` to let matplotlib stretch the
+        plot to fill the axes.
+    title : str, optional
+        Axes title, drawn in bold. Defaults to ``"W7X 2D density plot"``;
+        set to ``None`` or ``""`` to omit.
+    output_path : str or path-like, optional
+        If given, the figure is saved to this path via
+        :func:`matplotlib.figure.Figure.savefig` before any interactive
+        display. The format is inferred from the extension; pass a
+        ``.png`` path to save as PNG.
 
     Returns
     -------
@@ -119,14 +132,28 @@ log=False, cmap=None, ax=None, colorbar=True, cbar_label="density"):
         plotter = ax.tricontourf if filled else ax.tricontour
     cs = plotter(R, Z, density, **contour_kwargs)
 
-    ax.set_xlabel("R")
-    ax.set_ylabel("Z")
-    ax.set_aspect("equal")
+    ax.set_xlabel("R [m]", fontweight="bold")
+    ax.set_ylabel("Z [m]", fontweight="bold")
+    if equal_aspect:
+        ax.set_aspect("equal")
+    if title:
+        ax.set_title(title, fontweight="bold")
+    for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
+        tick_label.set_fontweight("bold")
+    ax.xaxis.get_offset_text().set_fontweight("bold")
+    ax.yaxis.get_offset_text().set_fontweight("bold")
 
     if colorbar:
         cbar = plt.colorbar(cs, ax=ax)
         if cbar_label:
-            cbar.set_label(cbar_label)
+            cbar.set_label(cbar_label, fontweight="bold")
+        for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
+            tick_label.set_fontweight("bold")
+        cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
+        cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
+
+    if output_path is not None:
+        ax.figure.savefig(output_path, bbox_inches="tight")
 
     if created_fig:
         plt.show()
