@@ -16,34 +16,23 @@ class ProfileInterpolator1D:
         self.original_profile = np.array(profile)
         self.original_R = np.array(R)
 
-        self._corrected_pairs = {}  # key: R_value, value: profile
+        # key: index into original_R, value: corrected profile value
+        self._corrections = {}
         self._regenerate_interpolator()
 
     def _regenerate_interpolator(self):
-        """Regenerate the interpolator from the original profile and R, including corrections."""
+        """Regenerate the interpolator from the original R and profile, applying corrections in place."""
         R = np.copy(self.original_R)
         profile = np.copy(self.original_profile)
 
-        # Apply corrections by replacing/adding R-profile pairs
-        if self._corrected_pairs:
-            corrected_R = np.array(list(self._corrected_pairs.keys()))
-            corrected_profile = np.array([self._corrected_pairs[r] for r in corrected_R])
-
-            # Combine original data with corrections (overwriting conflicts with corrections)
-            all_R = np.concatenate([R, corrected_R])
-            all_profile = np.concatenate([profile, corrected_profile])
-
-            # Get sorted unique R, with preference to corrected profiles if duplicated R
-            unique_R, indices = np.unique(all_R, return_index=True)
-            unique_profile = all_profile[indices]
-        else:
-            unique_R = R
-            unique_profile = profile
+        # Apply corrections by overwriting the profile value at the affected indices
+        for idx, value in self._corrections.items():
+            profile[idx] = value
 
         # Ensure sorted by R
-        sorted_indices = np.argsort(unique_R)
-        self.R = unique_R[sorted_indices]
-        self.profile = unique_profile[sorted_indices]
+        sorted_indices = np.argsort(R)
+        self.R = R[sorted_indices]
+        self.profile = profile[sorted_indices]
 
         self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
 
@@ -55,14 +44,19 @@ class ProfileInterpolator1D:
 
     def correct(self, R_value, profile_value):
         """
-        Specify a correction at a specific R value, then regenerate the interpolator.
+        Override the profile at the existing R datapoint closest to ``R_value``.
+
+        This does not add a new datapoint. The profile value of the original
+        R datapoint nearest to ``R_value`` is replaced with ``profile_value``,
+        and the interpolator is regenerated.
 
         Parameters
         ----------
         R_value : float
-            The R value for which to override the profile.
+            The R value used to locate the closest existing datapoint.
         profile_value : float
-            The profile value to use at R_value.
+            The new profile value to assign at that datapoint.
         """
-        self._corrected_pairs[R_value] = profile_value
+        idx = int(np.argmin(np.abs(self.original_R - R_value)))
+        self._corrections[idx] = profile_value
         self._regenerate_interpolator()
