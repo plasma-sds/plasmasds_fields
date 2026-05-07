@@ -207,3 +207,95 @@ def extract_density_and_points(flt, r_range=None, z_range=None):
         np.concatenate(Z_chunks),
         np.concatenate(density_chunks),
     )
+
+
+def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005, bottom_value=1e17, 
+r_limits=None, z_limits=None, method="linear", fill_with_nearest=True):
+    """
+    Interpolate scattered ``(r, z, density)`` data onto a regular grid.
+
+    Builds 1-D ``R`` and ``Z`` coordinate axes spanning the data extent
+    (or the user-supplied ``r_limits`` / ``z_limits``) with spacings
+    ``dr`` and ``dz``, then uses :func:`scipy.interpolate.griddata` to
+    evaluate the density on the resulting 2-D grid. Points outside the
+    convex hull of the input scatter are optionally filled in with a
+    nearest-neighbour interpolation. Finally, the whole field is
+    clamped from below by ``bottom_value`` (so any remaining NaNs and
+    any values smaller than the floor are replaced with
+    ``bottom_value``).
+
+    Parameters
+    ----------
+    r, z, density : array_like, shape (N,)
+        Scattered input data: cylindrical R coordinates, vertical Z
+        coordinates, and density values at each ``(r, z)`` point.
+    dr, dz : float, default 0.0005
+        Grid spacings along R and Z respectively.
+    bottom_value : float, default 1e17
+        Floor density. The output field is clamped so that no value is
+        below ``bottom_value``; any NaNs are also replaced with this
+        value.
+    r_limits, z_limits : sequence of float, optional
+        Two-element ``[min, max]`` bounds for the regular grid. If
+        ``None`` (default), the data ``min``/``max`` is used for that
+        axis.
+    method : str, default "linear"
+        Interpolation method passed to :func:`scipy.interpolate.griddata`
+        for the primary pass (``"linear"``, ``"cubic"``, or
+        ``"nearest"``).
+    fill_with_nearest : bool, default True
+        If ``True``, points returning NaN from the primary
+        interpolation (typically outside the convex hull of the input
+        scatter) are filled with a separate ``"nearest"`` pass before
+        the bottom-value clamp is applied.
+
+    Returns
+    -------
+    R_axis : ndarray of shape (nR,)
+        1-D array of R grid coordinates.
+    Z_axis : ndarray of shape (nZ,)
+        1-D array of Z grid coordinates.
+    density_grid : ndarray of shape (nZ, nR)
+        2-D density field on ``np.meshgrid(R_axis, Z_axis)``, with
+        ``density_grid[i, j]`` corresponding to ``(R_axis[j], Z_axis[i])``.
+    """
+    from scipy.interpolate import griddata
+
+    r = np.asarray(r, dtype=float)
+    z = np.asarray(z, dtype=float)
+    density = np.asarray(density, dtype=float)
+
+    if r_limits is None:
+        r_min, r_max = float(r.min()), float(r.max())
+    else:
+        r_min, r_max = float(r_limits[0]), float(r_limits[1])
+
+    if z_limits is None:
+        z_min, z_max = float(z.min()), float(z.max())
+    else:
+        z_min, z_max = float(z_limits[0]), float(z_limits[1])
+
+    # Add half a step so that the upper bound is included when it lands on a grid point.
+    R_axis = np.arange(r_min, r_max + 0.5 * dr, dr)
+    Z_axis = np.arange(z_min, z_max + 0.5 * dz, dz)
+    R_grid, Z_grid = np.meshgrid(R_axis, Z_axis)
+
+    points = np.column_stack([r, z])
+    density_grid = griddata(points, density, (R_grid, Z_grid), method=method)
+
+    if fill_with_nearest:
+        nan_mask = np.isnan(density_grid)
+        if np.any(nan_mask):
+            nearest_values = griddata(
+                points,
+                density,
+                (R_grid[nan_mask], Z_grid[nan_mask]),
+                method="nearest",
+            )
+            density_grid[nan_mask] = nearest_values
+
+    # Replace any remaining NaNs with the floor, then clamp from below.
+    density_grid = np.where(np.isnan(density_grid), bottom_value, density_grid)
+    density_grid = np.maximum(density_grid, bottom_value)
+
+    return R_axis, Z_axis, density_grid
