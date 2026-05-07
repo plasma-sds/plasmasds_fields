@@ -131,3 +131,50 @@ class ProfileInterpolator1D:
         self.profile = new_profile[sorted_indices]
 
         self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
+
+    def show(self, show_original=True, ax=None):
+        """
+        Plot the current R / profile pairs as a solid line.
+
+        Optionally overlays the originally supplied datapoints as a
+        scatter plot.
+
+        Parameters
+        ----------
+        show_original : bool, default True
+            If ``True``, scatter the original (``original_R``,
+            ``original_profile``) datapoints on top of the line plot.
+        ax : matplotlib.axes.Axes, optional
+            Axes to draw on. If ``None``, a new figure and axes are
+            created and ``plt.show()`` is called before returning.
+
+        Returns
+        -------
+        matplotlib.axes.Axes
+            The axes that were drawn on.
+        """
+        import matplotlib.pyplot as plt
+
+        created_fig = ax is None
+        if created_fig:
+            _, ax = plt.subplots()
+
+        ax.plot(self.R, self.profile, '-', label='profile')
+        if show_original:
+            ax.scatter(
+                self.original_R,
+                self.original_profile,
+                color='k',
+                marker='o',
+                zorder=5,
+                label='original',
+            )
+
+        ax.set_xlabel('R')
+        ax.set_ylabel('profile')
+        ax.legend()
+
+        if created_fig:
+            plt.show()
+
+        return ax
