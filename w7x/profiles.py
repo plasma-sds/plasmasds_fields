@@ -90,3 +90,44 @@ class ProfileInterpolator1D:
             )
 
         self._regenerate_interpolator(indices, profile_values)
+
+    def add(self, R_value, profile_value):
+        """
+        Append new datapoints to ``self.R`` / ``self.profile``.
+
+        Both ``R_value`` and ``profile_value`` may be scalars (float or
+        int) or array-likes of matching length. The combined arrays are
+        re-sorted by R and the interpolator is rebuilt.
+
+        Note that this expands only the working arrays; the originals
+        (``self.original_R`` / ``self.original_profile``) are left
+        untouched, so :meth:`reset` will discard any added datapoints
+        along with corrections.
+
+        Parameters
+        ----------
+        R_value : float, int, or array-like
+            New R coordinate(s) to add.
+        profile_value : float or array-like
+            Corresponding profile value(s). Must be a scalar or have
+            the same shape as ``R_value``.
+        """
+        R_values = np.atleast_1d(R_value)
+        profile_values = np.atleast_1d(profile_value)
+
+        if profile_values.size == 1 and R_values.size > 1:
+            profile_values = np.broadcast_to(profile_values, R_values.shape)
+        if R_values.shape != profile_values.shape:
+            raise ValueError(
+                "R_value and profile_value must have matching shapes "
+                f"(got {R_values.shape} and {profile_values.shape})."
+            )
+
+        new_R = np.concatenate([self.R, R_values])
+        new_profile = np.concatenate([self.profile, profile_values])
+
+        sorted_indices = np.argsort(new_R)
+        self.R = new_R[sorted_indices]
+        self.profile = new_profile[sorted_indices]
+
+        self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
