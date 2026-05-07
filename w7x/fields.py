@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def make_2D_density(flt, density_function, r_range=None, z_range=None, R_exception_range=(6.22, 6.23)):
+def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_exception_range=(6.22, 6.23)):
     """
     Assign a density to each surface based on the average R of that surface's
     points inside the requested R-Z window, excluding points in an optional
