@@ -16,24 +16,17 @@ class ProfileInterpolator1D:
         self.original_profile = np.array(profile)
         self.original_R = np.array(R)
 
-        # key: index into original_R, value: corrected profile value
-        self._corrections = {}
-        self._regenerate_interpolator()
+        # Working arrays start as a sorted copy of the originals; corrections
+        # accumulate by overwriting entries in self.profile in place.
+        sorted_indices = np.argsort(self.original_R)
+        self.R = np.copy(self.original_R[sorted_indices])
+        self.profile = np.copy(self.original_profile[sorted_indices])
 
-    def _regenerate_interpolator(self):
-        """Regenerate the interpolator from the original R and profile, applying corrections in place."""
-        R = np.copy(self.original_R)
-        profile = np.copy(self.original_profile)
+        self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
 
-        # Apply corrections by overwriting the profile value at the affected indices
-        for idx, value in self._corrections.items():
-            profile[idx] = value
-
-        # Ensure sorted by R
-        sorted_indices = np.argsort(R)
-        self.R = R[sorted_indices]
-        self.profile = profile[sorted_indices]
-
+    def _regenerate_interpolator(self, idx, profile_value):
+        """Overwrite the profile at ``idx`` and rebuild the interpolator."""
+        self.profile[idx] = profile_value
         self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def interpolate(self, R_values):
@@ -46,9 +39,9 @@ class ProfileInterpolator1D:
         """
         Override the profile at the existing R datapoint closest to ``R_value``.
 
-        This does not add a new datapoint. The profile value of the original
-        R datapoint nearest to ``R_value`` is replaced with ``profile_value``,
-        and the interpolator is regenerated.
+        Corrections are cumulative: each call modifies the current
+        ``self.R`` / ``self.profile`` state, building on any previous
+        corrections rather than reapplying them from the originals.
 
         Parameters
         ----------
@@ -57,6 +50,5 @@ class ProfileInterpolator1D:
         profile_value : float
             The new profile value to assign at that datapoint.
         """
-        idx = int(np.argmin(np.abs(self.original_R - R_value)))
-        self._corrections[idx] = profile_value
-        self._regenerate_interpolator()
+        idx = int(np.argmin(np.abs(self.R - R_value)))
+        self._regenerate_interpolator(idx, profile_value)
