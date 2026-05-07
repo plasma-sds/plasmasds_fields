@@ -129,3 +129,81 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         filtered_surfs.append(surf)
 
     return filtered_surfs
+
+
+def extract_density_and_points(flt, r_range=None, z_range=None):
+    """
+    Flatten all surfaces' points into ``R``, ``Z``, and ``density`` arrays.
+
+    Iterates over every surface and every point on each surface, keeping
+    only points whose cylindrical ``R = sqrt(x1**2 + x2**2)`` and
+    ``Z = x3`` fall within the supplied ranges. For each retained point,
+    the density value comes from its parent surface's ``density``
+    attribute (so a surface's density is repeated once per retained
+    point on that surface).
+
+    Parameters
+    ----------
+    flt : list of FluxSurface or field-line-tracer result
+        Either a list of :class:`FluxSurface` instances or an object
+        exposing ``flt.poincare_res.surfs``.
+    r_range : sequence of float, optional
+        Two-element ``[R_min, R_max]`` interval. If ``None`` (default),
+        no ``R`` constraint is applied.
+    z_range : sequence of float, optional
+        Two-element ``[Z_min, Z_max]`` interval. If ``None`` (default),
+        no ``Z`` constraint is applied.
+
+    Returns
+    -------
+    R : ndarray of shape (N,)
+        Major radius of each retained point.
+    Z : ndarray of shape (N,)
+        Vertical coordinate of each retained point.
+    density : ndarray of shape (N,)
+        Parent-surface density associated with each retained point.
+    """
+    surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
+
+    R_chunks = []
+    Z_chunks = []
+    density_chunks = []
+
+    for surf in surfs:
+        if surf.points.x1 is None or len(surf.points.x1) == 0:
+            continue
+
+        x1 = np.asarray(surf.points.x1)
+        x2 = np.asarray(surf.points.x2)
+        z = np.asarray(surf.points.x3)
+
+        R = np.sqrt(x1**2 + x2**2)
+
+        if r_range is not None:
+            r_mask = (R >= r_range[0]) & (R <= r_range[1])
+        else:
+            r_mask = np.ones_like(R, dtype=bool)
+
+        if z_range is not None:
+            z_mask = (z >= z_range[0]) & (z <= z_range[1])
+        else:
+            z_mask = np.ones_like(z, dtype=bool)
+
+        mask = r_mask & z_mask
+        n_kept = int(mask.sum())
+        if n_kept == 0:
+            continue
+
+        R_chunks.append(R[mask])
+        Z_chunks.append(z[mask])
+        density_chunks.append(np.full(n_kept, surf.density, dtype=float))
+
+    if not R_chunks:
+        empty = np.empty(0)
+        return empty, empty.copy(), empty.copy()
+
+    return (
+        np.concatenate(R_chunks),
+        np.concatenate(Z_chunks),
+        np.concatenate(density_chunks),
+    )
