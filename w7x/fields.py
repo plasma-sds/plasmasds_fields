@@ -1,9 +1,7 @@
 import numpy as np
 
-from tools.interpolate import ProfileInterpolator1D
 
-
-def add_densities_to_2D_flux_surfaces(flt, density_function, r_range=None, z_range=None, R_exception_range=(6.22, 6.23)):
+def make_2D_density(flt, density_function, r_range=None, z_range=None, R_exception_range=(6.22, 6.23)):
     """
     Assign a density to each surface based on the average R of that surface's
     points inside the requested R-Z window, excluding points in an optional
@@ -13,10 +11,13 @@ def add_densities_to_2D_flux_surfaces(flt, density_function, r_range=None, z_ran
     ----------
     flt : list or object
         Either a list of Surf objects or an object with ``flt.poincare_res.surfs``.
-    density_function : ProfileInterpolator1D
-        A ``ProfileInterpolator1D`` instance (from ``tools.interpolate``)
-        whose ``interpolate(R)`` method returns the density at radial
-        position ``R``.
+    density_function : callable
+        A scipy 1D interpolator (e.g. ``scipy.interpolate.interp1d``) that
+        returns the density at a given radial position ``R``. Typically this
+        is the ``interpolator`` attribute of a
+        ``tools.interpolate.ProfileInterpolator1D`` instance, i.e. pass
+        ``profile.interpolator`` rather than the ``ProfileInterpolator1D``
+        object itself.
     r_range : tuple or list, optional
         ``(R_min, R_max)`` range used to select candidate points.
     z_range : tuple or list, optional
@@ -31,12 +32,6 @@ def add_densities_to_2D_flux_surfaces(flt, density_function, r_range=None, z_ran
     list
         The updated list of surfaces.
     """
-    if not isinstance(density_function, ProfileInterpolator1D):
-        raise TypeError(
-            "density_function must be a ProfileInterpolator1D instance "
-            f"(got {type(density_function).__name__})."
-        )
-
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
 
     for surf in surfs:
@@ -85,6 +80,6 @@ def add_densities_to_2D_flux_surfaces(flt, density_function, r_range=None, z_ran
         # Step 3: average R of this surface
         R_avg = np.mean(R_for_average)
         # Step 4: interpolate density and assign to surface
-        surf.density = density_function.interpolate(R_avg)
+        surf.density = density_function(R_avg)
 
     return surfs
