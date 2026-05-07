@@ -18,10 +18,16 @@ class ProfileInterpolator1D:
 
         # Working arrays start as a sorted copy of the originals; corrections
         # accumulate by overwriting entries in self.profile in place.
+        self.reset()
+
+    def reset(self):
+        """Reset ``self.R`` / ``self.profile`` to the originals and rebuild the interpolator.
+
+        Discards any corrections that have been applied since construction.
+        """
         sorted_indices = np.argsort(self.original_R)
         self.R = np.copy(self.original_R[sorted_indices])
         self.profile = np.copy(self.original_profile[sorted_indices])
-
         self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def _regenerate_interpolator(self, idx, profile_value):
