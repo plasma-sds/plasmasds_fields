@@ -83,3 +83,49 @@ def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_e
         surf.density = density_function(R_avg)
 
     return surfs
+
+
+def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
+    """
+    Filter flux surfaces by their assigned density.
+
+    By default, surfaces whose ``density`` is exactly ``0`` (e.g. surfaces
+    that were never assigned a density by :func:`add_density_to_fields`)
+    are dropped. Optionally a ``[lower, upper]`` density range can be
+    supplied to keep only surfaces whose density falls within those bounds.
+
+    Parameters
+    ----------
+    flt : list of FluxSurface or field-line-tracer result
+        Either a list of :class:`FluxSurface` instances or an object
+        exposing ``flt.poincare_res.surfs``.
+    density_range : sequence of float, optional
+        Two-element ``[lower, upper]`` interval on ``surf.density``.
+        If ``None`` (default), no upper/lower bound is imposed beyond the
+        ``include_zero`` rule.
+    include_zero : bool, default False
+        If ``False`` (default), surfaces with ``density == 0`` are always
+        dropped. If ``True``, zero-density surfaces are kept (subject to
+        ``density_range`` if it is supplied).
+
+    Returns
+    -------
+    list of FluxSurface
+        The surfaces (unmodified, by reference) that pass the filter.
+    """
+    surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
+
+    filtered_surfs = []
+    for surf in surfs:
+        density = surf.density
+
+        if not include_zero and density == 0:
+            continue
+
+        if density_range is not None:
+            if density < density_range[0] or density > density_range[1]:
+                continue
+
+        filtered_surfs.append(surf)
+
+    return filtered_surfs
