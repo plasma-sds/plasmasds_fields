@@ -9,24 +9,41 @@ class Points(object):
     The coordinates ``x1``, ``x2`` and ``x3`` are stored as NumPy arrays of
     equal length, where the i-th point is given by
     ``(x1[i], x2[i], x3[i])``.
+    Further arrays store the radial position 'r', the vertical position 'z',
+    the density 'd' and the type of the point 'point_type'. 
+    
+    r = sqrt(x1^2 + x2^2)
+    z = x3
+    d = 0 (initial value)
+    The type of the point can be three values:
+        - self.point_type = 0 -> not island point
+        - self.point_type = 1 -> island point at outer surface
+        - self.point_type = 2 -> island point at inner surface
     """
 
-    def __init__(self, x1, x2, x3):
+    def __init__(self, x1, x2, x3, density=0, point_type=0):
         """
         Initialize a ``Points`` instance from three coordinate sequences.
 
         Parameters
         ----------
-        x1, x2, x3 , r, z: array_like
+        x1, x2, x3: array_like
             Sequences (or arrays) of equal length holding the first, second
             and third coordinate of each point. They are converted to
             ``numpy.ndarray`` on assignment.
         """
+        self.n = len(x1)
         self.x1 = np.array(x1)                      # first coordinate
         self.x2 = np.array(x2)                      # second coordinate
         self.x3 = np.array(x3)                      # third coordinate
         self.r = np.sqrt(self.x1**2 + self.x2**2)   # radial distance
         self.z = self.x3                            # vertical coord
+        
+        self.d = np.zeros(self.n)
+        self.d[:] = density
+        
+        self.point_type = np.zeros(self.n, dtype=np.uint8)
+        self.point_type[:] = point_type
 
     def __array__(self, dtype=None):
         """
@@ -63,7 +80,7 @@ class FluxSurface(object):
     """
 
     def __init__(self, x1, x2, x3, phi0, 
-                 density=0, assymetric_island_density=0):
+                 point_type=0, density=0, surf_type="default"):
         """
         Initialize a flux surface.
 
@@ -74,34 +91,75 @@ class FluxSurface(object):
         phi0 : float
             Reference toroidal angle (in radians) at which the surface was
             sampled.
-        density : float, optional
-            Bulk plasma density associated with the surface. Defaults to 0.
-        assymetric_island_density : float, optional
-            Additional density contribution from an asymmetric magnetic
-            island, if any. Defaults to 0.
-        
+        density : float or array_like, optional
+            Bulk plasma density or density distribution associated 
+            with the surface. Defaults to 0.
+        point_type : float or array_like, optional
+            The type of the points on the surface. 
+            Can be three values:
+                - self.point_type = 0 -> not island point
+                - self.point_type = 1 -> island point at outer surface
+                - self.point_type = 2 -> island point at inner surface
+            Defaults to 0.
+            
+        Further attributes:
+        N : integer
+            number of points in the self.points arrays
+        coeffs : list
+            list of coefficient for each 'point_type' group
+        errors : list
+            list of coefficient for each 'point_type' group
         """
-        self.points = Points(x1, x2, x3)
+        self.points = Points(x1, x2, x3, 
+                             density=density, point_type=point_type)
         self.phi0 = phi0
-        self.density = density
-        self.assymetric_island_density = assymetric_island_density
         self.N = np.shape(np.asarray(self.points))[1]
+        self.coeffs = [None]
+        self.errors = [None]
 
-    def update_density(self, value, assymetric_island_density=None):
+    def update_density(self, value, mask=None):
         """
-        Update the (bulk and optional island) density of the surface.
+        Update the density of the surface.
 
         Parameters
         ----------
-        value : float
-            New bulk density value.
-        assymetric_island_density : float, optional
-            If given, also overwrite the asymmetric island density. If
-            ``None`` (default), the island density is left unchanged.
+        value : float or array
+            New bulk density value or density distribution.
+        mask : array, optional
+            If given, overwrite only the density values where the mask has 
+            'True' value.
         """
-        self.density = value
-        if assymetric_island_density is not None:
-            self.assymetric_island_density = assymetric_island_density
+        if mask is None: self.points.d[:] = value
+        else: self.points.d[mask] = value
+        
+    def update_point_type(self, value, mask=None):
+        """
+        Update the type of the surface or points.
+
+        Parameters
+        ----------
+        value : float or array
+            New point type value for all points or each points separately.
+        mask : array, optional
+            If given, overwrite only the type values where the mask has 
+            'True' value.
+        """
+        if mask is None: self.points.point_type[:] = value
+        else: self.points.point_type[mask] = value
+        
+    def filter_points(self, mask):
+        """
+        Filter the points based on mask array. 
+
+        Parameters
+        ----------
+        mask : array
+            Remove point elements where the mask has 'False' value.
+        """
+        for attr, value in vars(self.points).items():
+            if isinstance(value, np.ndarray):
+                setattr(self.points, attr, value[mask])
+        self.N = sum(mask)
 
 class Range(object):
     """ 
@@ -123,10 +181,6 @@ class Range(object):
         flt : list of FluxSurface objects
             Filtered list of FluxSurface objects.
 
-        Returns
-        -------
-        None.
-
         """
         
         self.x1Min = min([np.min(surf.points.x1) for surf in flt])
@@ -137,8 +191,8 @@ class Range(object):
         self.x3Max = max([np.max(surf.points.x3) for surf in flt])
         self.rMin  = min([np.min(surf.points.r ) for surf in flt])
         self.rMax  = max([np.max(surf.points.r ) for surf in flt])
-        self.dMin  = min([np.min(surf.density  ) for surf in flt])
-        self.dMax  = max([np.max(surf.density  ) for surf in flt])
+        self.dMin  = min([np.min(surf.points.d ) for surf in flt])
+        self.dMax  = max([np.max(surf.points.d ) for surf in flt])
         self.zMin  = self.x3Min
         self.zMax  = self.x3Max
         
@@ -334,7 +388,7 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     list of FluxSurface
         New :class:`FluxSurface` instances containing only the points
         that pass both the ``R`` and ``z`` filters. ``phi0``, ``density``
-        and ``assymetric_island_density`` are copied from the originals.
+        and ``point_type`` are copied from the originals.
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
     """
@@ -376,15 +430,8 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
             # within the ranges
             if np.any(mask):
                 # Filter the points
-                x1_filtered = np.array(surf.points.x1)[mask].tolist()
-                x2_filtered = np.array(surf.points.x2)[mask].tolist()
-                x3_filtered = np.array(surf.points.x3)[mask].tolist()
-                
-                # Create new filtered surface
-                filtered_surf = FluxSurface(
-                    x1_filtered, x2_filtered, x3_filtered, surf.phi0,
-                    surf.density, surf.assymetric_island_density)
-                filtered_surfs.append(filtered_surf)
+                surf.filter_points(mask)
+                filtered_surfs.append(surf)
     
     return filtered_surfs
 
@@ -396,14 +443,19 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
     order), which error can indicate the flux surface relevance. The 0 order
     coefficient can be also used to estimate the radial position of the 
     flux surface.
-
-    The input may be either a list of :class:`FluxSurface` instances (as
-    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
-    result object exposing ``poincare_res.surfs``. The function first
-    selects a contiguous slice of surfaces (``surf_range``), then for each
-    remaining surface keeps only the points whose cylindrical
-    ``R = sqrt(x1**2 + x2**2)`` and ``z = x3`` fall within the supplied
-    ranges. Surfaces left with no points are dropped.
+    
+    
+    Based on the polinom fit each points in a Flux Surface object
+    are sorted into group of 'point_type':
+        - surf.points.point_type[i] = 0 -> not island point
+        - surf.points.point_type[i] = 1 -> island point at outer surface
+        - surf.points.point_type[i] = 2 -> island point at inner surface
+    Each group has a polinom fit function. The coefficient arrays and errors 
+    related to every 'point_type' groups are added to a list (surf.coeffs 
+    and surf.errors). Therefore these lists contain three element, one for 
+    each 'point_type' group. If there is no point with a certain point_type
+    in the surf object and no polinom fit is possible, a 'None' element
+    is added to the list.
 
     Parameters
     ----------
@@ -421,74 +473,62 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
     Returns
     ------- , , 
     surfaces : list of FluxSurface
-        Returns the list of flux surfaces, splitting island surfaces into 
-        low field and high field side.
-    types : np.array with the shape of len(surfaces)
-        Containing the type of each flux surface: not island (0), low field
-        side (1) and high field side (2).
-    errors : np.array with the shape of len(surfaces)
-        Contains the error of the polinom fit for each flux surface.
-    coeffs : np.array with the shape of (len(surfaces), order)
-        Contains the coefficients of each fit.
+        Returns the list of flux surfaces, with updated point_type for each 
+        'Points' object attribute.
+        
+        Two more attributes are added: 
+            - surf.coeffs: list, contains coefficient of polinom fit for each 
+            'point_type' group.
+            - surf.errors: list, contains the error of polinom fit for each 
+            'point_type' group.
     """
     
-    types = list()
-    coeffs = list()
-    errors = list()
     Surfs = list()
     
     for i, surf in enumerate(flt):
+        print(surf.N)
         r, z = surf.points.r, surf.points.z
         coeff = np.polyfit(z[:], r[:], order)
         error = np.sqrt(np.mean((r - np.polyval(coeff, z))**2))
+        
         
         # Conditions to differentiate island and not-island surfaces:
         # Error is high | or | the number of points are large
         condition_1 = error > limit_error
         condition_2 = surf.N > limit_number
         if (condition_1 or condition_2):
+            
+            
             # island case: split surface to low and high field side
             p = np.polyval(coeff, z)    # center line by polyfit
-            o = r-p > 0                 #  low field side point filter
-            i = np.invert(o)            # high field side point filter
+            o = r-p > 0                 # outer side point mask
+            i = np.invert(o)            # inner side point mask
             
-            # LOW FIELD SIDE
-            surf_o = FluxSurface(surf.points.x1[o], 
-                                 surf.points.x2[o],
-                                 surf.points.x3[o],
-                                 surf.phi0, density=surf.density)
-            coeff = np.polyfit(z[o], r[o], order)
-            error = np.sqrt(np.mean((r - np.polyval(coeff, z))**2))
+            # Outer side
+            surf.update_point_type(1, mask=o)
+            coeff_o = np.polyfit(z[o], r[o], order)
+            error_o = np.sqrt(np.mean((r - np.polyval(coeff_o, z))**2))
             
-            Surfs.append(surf_o)
-            coeffs.append(coeff)
-            errors.append(error)
-            types.append(2)
+            # Inner side
+            surf.update_point_type(2, mask=i)
+            coeff_i = np.polyfit(z[i], r[i], order)
+            error_i = np.sqrt(np.mean((r - np.polyval(coeff_i, z))**2))
             
-            # HIGH FIELD SIDE
-            surf_i = FluxSurface(surf.points.x1[i], 
-                                 surf.points.x2[i],
-                                 surf.points.x3[i],
-                                 surf.phi0, density=surf.density)
-            coeff = np.polyfit(z[i], r[i], order)
-            error = np.sqrt(np.mean((r - np.polyval(coeff, z))**2))
+            surf.coeffs = [None, coeff_o, coeff_i]
+            surf.errors = [None, error_o, error_i]
             
-            Surfs.append(surf_i)
-            coeffs.append(coeff)
-            errors.append(error)
-            types.append(1)
+            Surfs.append(surf)
             
         else:
             # not-island case
             # Leave all surfaces as they are.
+            surf.coeffs = [coeff, None, None]
+            surf.errors = [error, None, None]
             Surfs.append(surf)
-            coeffs.append(coeff)
-            errors.append(error)
-            types.append(0)
         
-    return Surfs, np.array(types), np.array(errors), np.asarray(coeffs)
+    return Surfs
 
-def plot_w7x_regimes(surfaces, types, labels, magnetic_conf='',
+def plot_w7x_regimes(surfaces, labels, magnetic_conf='',
                      r_range=None, z_range=None, phi=np.nan, 
                      boxes=None, aspect=False, save_image=False, legend=False):
     """
@@ -501,8 +541,6 @@ def plot_w7x_regimes(surfaces, types, labels, magnetic_conf='',
         Either a list of :class:`FluxSurface` instances (as returned by
         :func:`load_w7x_flux_surfaces`) or a field-line-tracer result
         object exposing ``poincare_res.surfs``.
-    types : np.array the shape of len(surfaces)
-        contains the type of each flux surfaces
     labels : list of strings
         contains the expression for each type - used in legend
     magnetic_conf : str, optional
@@ -538,7 +576,8 @@ def plot_w7x_regimes(surfaces, types, labels, magnetic_conf='',
         if surface.points.x1 is not None and len(surface.points.x1) > 0:
             r = surface.points.r
             z = surface.points.z
-            ax.scatter(r, z, color=colors[types[i]], s=0.2)
+            c = [colors[i] for i in surface.points.point_type]
+            ax.scatter(r, z, color=c, s=0.2)
         else:
             print("Surface {} contains no points!".format(i + 1))
     
