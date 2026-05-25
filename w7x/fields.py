@@ -84,6 +84,24 @@ def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_e
 
     return surfs
 
+def add_density_by_type(flt, density_function,
+                        limit_error = 0.035):
+    
+    for surf in flt:
+        type_to_save = []
+        for i in [0,1,2]:
+            mask = surf.points.point_type == i
+            if np.any(mask):
+                dens = density_function(surf.coeffs[i][2])
+                surf.update_density(dens, mask=mask)
+                
+            if surf.errors[i] != None:
+                if surf.errors[i] < limit_error: type_to_save.append(i)
+        mask = np.isin(surf.points.point_type, type_to_save)
+        surf.filter_points(mask)
+        
+    return flt
+
 
 def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     """
@@ -165,24 +183,22 @@ def extract_density_and_points(flt, r_range=None, z_range=None):
     """
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
 
-    R_chunks = []
-    Z_chunks = []
+    r_chunks = []
+    z_chunks = []
     density_chunks = []
 
     for surf in surfs:
         if surf.points.x1 is None or len(surf.points.x1) == 0:
             continue
 
-        x1 = np.asarray(surf.points.x1)
-        x2 = np.asarray(surf.points.x2)
-        z = np.asarray(surf.points.x3)
-
-        R = np.sqrt(x1**2 + x2**2)
+        r = np.asarray(surf.points.r)
+        z = np.asarray(surf.points.z)
+        d = np.asarray(surf.points.d)
 
         if r_range is not None:
-            r_mask = (R >= r_range[0]) & (R <= r_range[1])
+            r_mask = (r >= r_range[0]) & (r <= r_range[1])
         else:
-            r_mask = np.ones_like(R, dtype=bool)
+            r_mask = np.ones_like(r, dtype=bool)
 
         if z_range is not None:
             z_mask = (z >= z_range[0]) & (z <= z_range[1])
@@ -194,17 +210,17 @@ def extract_density_and_points(flt, r_range=None, z_range=None):
         if n_kept == 0:
             continue
 
-        R_chunks.append(R[mask])
-        Z_chunks.append(z[mask])
-        density_chunks.append(np.full(n_kept, surf.density, dtype=float))
+        r_chunks.append(r[mask])
+        z_chunks.append(z[mask])
+        density_chunks.append(d[mask])
 
-    if not R_chunks:
+    if not r_chunks:
         empty = np.empty(0)
         return empty, empty.copy(), empty.copy()
 
     return (
-        np.concatenate(R_chunks),
-        np.concatenate(Z_chunks),
+        np.concatenate(r_chunks),
+        np.concatenate(z_chunks),
         np.concatenate(density_chunks),
     )
 

@@ -514,7 +514,7 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
             coeff_i = np.polyfit(z[i], r[i], order)
             error_i = np.sqrt(np.mean((r - np.polyval(coeff_i, z))**2))
             
-            surf.coeffs = [None, coeff_o, coeff_i]
+            surf.coeffs = [np.zeros(order+1), coeff_o, coeff_i]
             surf.errors = [None, error_o, error_i]
             
             Surfs.append(surf)
@@ -522,7 +522,7 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
         else:
             # not-island case
             # Leave all surfaces as they are.
-            surf.coeffs = [coeff, None, None]
+            surf.coeffs = [coeff, np.zeros(order+1), np.zeros(order+1)]
             surf.errors = [error, None, None]
             Surfs.append(surf)
         
