@@ -1,7 +1,8 @@
 import numpy as np
 
 
-def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_exception_range=(6.22, 6.23)):
+def add_density_to_fields(flt, density_function, r_range=None, z_range=None, 
+                          R_exception_range=(6.22, 6.23)):
     """
     Assign a density to each surface based on the average R of that surface's
     points inside the requested R-Z window, excluding points in an optional
@@ -10,7 +11,8 @@ def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_e
     Parameters
     ----------
     flt : list or object
-        Either a list of Surf objects or an object with ``flt.poincare_res.surfs``.
+        Either a list of Surf objects or an object with 
+        ``flt.poincare_res.surfs``.
     density_function : callable
         A scipy 1D interpolator (e.g. ``scipy.interpolate.interp1d``) that
         returns the density at a given radial position ``R``. Typically this
@@ -32,6 +34,7 @@ def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_e
     list
         The updated list of surfaces.
     """
+    
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
 
     for surf in surfs:
@@ -84,24 +87,41 @@ def add_density_to_fields(flt, density_function, r_range=None, z_range=None, R_e
 
     return surfs
 
-def add_density_by_type(flt, density_function,
-                        limit_error = 0.035):
+def add_density_by_type(flt, density_function):
+    """
+    Assign a density to each surface based on the R of the surface's
+    points, obtained prior (for example by polinom fit)
+
+    Parameters
+    ----------
+    flt : list or object
+        Either a list of Surf objects or an object with ``flt.poincare_res.surfs``.
+    density_function : callable
+        A scipy 1D interpolator (e.g. ``scipy.interpolate.interp1d``) that
+        returns the density at a given radial position ``R``. Typically this
+        is the ``interpolator`` attribute of a
+        ``tools.interpolate.ProfileInterpolator1D`` instance, i.e. pass
+        ``profile.interpolator`` rather than the ``ProfileInterpolator1D``
+        object itself.
+        --> note that scipy 1D interpolator can only interpolate, and cannot
+        extrapolate.
+
+    Returns
+    -------
+    list
+        The updated list of surfaces.
+    """
     
-    for surf in flt:
-        type_to_save = []
-        for i in [0,1,2]:
+    surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
+    
+    for surf in surfs:
+        for i in range(len(surf.errors)):
             mask = surf.points.point_type == i
             if np.any(mask):
-                dens = density_function(surf.coeffs[i][2])
+                dens = density_function(surf.coeffs[i, 2])
                 surf.update_density(dens, mask=mask)
                 
-            if surf.errors[i] != None:
-                if surf.errors[i] < limit_error: type_to_save.append(i)
-        mask = np.isin(surf.points.point_type, type_to_save)
-        surf.filter_points(mask)
-        
-    return flt
-
+    return surfs
 
 def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     """
@@ -131,6 +151,7 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     list of FluxSurface
         The surfaces (unmodified, by reference) that pass the filter.
     """
+    
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
 
     filtered_surfs = []
@@ -147,7 +168,6 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         filtered_surfs.append(surf)
 
     return filtered_surfs
-
 
 def extract_density_and_points(flt, r_range=None, z_range=None):
     """
@@ -181,6 +201,7 @@ def extract_density_and_points(flt, r_range=None, z_range=None):
     density : ndarray of shape (N,)
         Parent-surface density associated with each retained point.
     """
+    
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
 
     r_chunks = []
@@ -224,9 +245,63 @@ def extract_density_and_points(flt, r_range=None, z_range=None):
         np.concatenate(density_chunks),
     )
 
+def extract_points(surfaces):
+    """
+    Flatten all surfaces' points and their properties into arrays, stored
+    in a dictionary.
 
-def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005, bottom_value=1e16, 
-r_limits=None, z_limits=None, method="linear", fill_with_nearest=True):
+    Iterates over every surface and every point on each surface.
+
+    Parameters
+    ----------
+    surfaces : list of FluxSurface or field-line-tracer result
+        Either a list of :class:`FluxSurface` instances or an object
+        exposing ``flt.poincare_res.surfs``.
+
+    Returns
+    -------
+    data : dictionary with the following keys:
+        "x1" : ndarray of shape (N,)
+            x1 coordinates of all the points in the list of surfaces.
+        "x2" : ndarray of shape (N,)
+            x2 coordinates of all the points in the list of surfaces.
+        "x3" : ndarray of shape (N,)
+            x3 coordinates of all the points in the list of surfaces.
+        "r" : ndarray of shape (N,)
+            r radial position of all the points in the list of surfaces.
+        "z" : ndarray of shape (N,)
+            z vertical position of all the points in the list of surfaces.
+        "d" : ndarray of shape (N,)
+            d density of all the points in the list of surfaces.
+        "point_type" : ndarray of shape (N,)
+            the type of all the points in the list of surfaces, related to
+            island trajectories.
+        "R" : ndarray of shape (N,)
+            The radial position of the surface (or part of it).
+    """
+    
+    data = {"x1": list(), "x2": list(), "x3": list(), 
+            "r": list(), "z": list(), "d": list(), 
+            "point_type": list(), "R": list()}
+    for surf in surfaces:
+        data["x1"] += surf.points.x1.tolist()
+        data["x2"] += surf.points.x2.tolist()
+        data["x3"] += surf.points.x3.tolist()
+        data["r"] += surf.points.r.tolist()
+        data["z"] += surf.points.z.tolist()
+        data["d"] += surf.points.d.tolist()
+        data["point_type"] += surf.points.point_type.tolist()
+        data["R"] += surf.coeffs[:, 2][surf.points.point_type].tolist()
+        
+    for key in data.keys():
+        data[key] = np.array(data[key])
+        
+    return data
+
+def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005, 
+                               bottom_value=1e16, 
+                               r_limits=None, z_limits=None, 
+                               method="linear", fill_with_nearest=True):
     """
     Interpolate scattered ``(r, z, density)`` data onto a regular grid.
 
@@ -291,7 +366,8 @@ r_limits=None, z_limits=None, method="linear", fill_with_nearest=True):
     else:
         z_min, z_max = float(z_limits[0]), float(z_limits[1])
 
-    # Add half a step so that the upper bound is included when it lands on a grid point.
+    # Add half a step so that the upper bound is included when it lands
+    # on a grid point.
     R_axis = np.arange(r_min, r_max + 0.5 * dr, dr)
     Z_axis = np.arange(z_min, z_max + 0.5 * dz, dz)
     R_grid, Z_grid = np.meshgrid(R_axis, Z_axis)

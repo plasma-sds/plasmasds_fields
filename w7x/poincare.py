@@ -32,6 +32,7 @@ class Points(object):
             and third coordinate of each point. They are converted to
             ``numpy.ndarray`` on assignment.
         """
+        
         self.n = len(x1)
         self.x1 = np.array(x1)                      # first coordinate
         self.x2 = np.array(x2)                      # second coordinate
@@ -63,11 +64,12 @@ class Points(object):
             Array of shape ``(3, N)`` whose rows are ``x1``, ``x2`` and
             ``x3`` respectively.
         """
+        
         arr = np.array([self.x1, self.x2, self.x3])
         if dtype is not None:
             arr = arr.astype(dtype)
+            
         return arr
-
 
 class FluxSurface(object):
     """
@@ -110,6 +112,7 @@ class FluxSurface(object):
         errors : list
             list of coefficient for each 'point_type' group
         """
+        
         self.points = Points(x1, x2, x3, 
                              density=density, point_type=point_type)
         self.phi0 = phi0
@@ -129,6 +132,7 @@ class FluxSurface(object):
             If given, overwrite only the density values where the mask has 
             'True' value.
         """
+        
         if mask is None: self.points.d[:] = value
         else: self.points.d[mask] = value
         
@@ -144,6 +148,7 @@ class FluxSurface(object):
             If given, overwrite only the type values where the mask has 
             'True' value.
         """
+        
         if mask is None: self.points.point_type[:] = value
         else: self.points.point_type[mask] = value
         
@@ -156,6 +161,7 @@ class FluxSurface(object):
         mask : array
             Remove point elements where the mask has 'False' value.
         """
+        
         for attr, value in vars(self.points).items():
             if isinstance(value, np.ndarray):
                 setattr(self.points, attr, value[mask])
@@ -223,6 +229,7 @@ def load_w7x_flux_surfaces(filename):
         One :class:`FluxSurface` per surface found in the file, in the
         order they appear.
     """
+    
     tree = ET.parse(filename)
     root = tree.getroot()  # {fltracer.gsoap.boz.hgw.ipp.mpg.de}Result {}
     surfaces = list()
@@ -269,8 +276,10 @@ def box_plot_coordinates(r_min, z_min, r_max, z_max):
         Five-element arrays of corner coordinates, with the first point
         repeated at the end to close the rectangle.
     """
+    
     r = np.array([r_min, r_max, r_max, r_min, r_min])
     z = np.array([z_min, z_min, z_max, z_max, z_min])
+    
     return r, z
 
 def plot_w7x_flux_surfaces(surfaces, magnetic_conf='', 
@@ -307,6 +316,7 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
         figure is written as a PNG (a ``.png`` extension is appended if
         missing).
     """
+    
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
 
@@ -387,11 +397,11 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     -------
     list of FluxSurface
         New :class:`FluxSurface` instances containing only the points
-        that pass both the ``R`` and ``z`` filters. ``phi0``, ``density``
-        and ``point_type`` are copied from the originals.
+        that pass both the ``R`` and ``z`` filters. 
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
     """
+    
     if not isinstance(flt, list):
         surfs = flt.poincare_res.surfs
     else:
@@ -483,10 +493,10 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
             'point_type' group.
     """
     
+    surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     Surfs = list()
     
-    for i, surf in enumerate(flt):
-        print(surf.N)
+    for i, surf in enumerate(surfs):
         r, z = surf.points.r, surf.points.z
         coeff = np.polyfit(z[:], r[:], order)
         error = np.sqrt(np.mean((r - np.polyval(coeff, z))**2))
@@ -514,7 +524,7 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
             coeff_i = np.polyfit(z[i], r[i], order)
             error_i = np.sqrt(np.mean((r - np.polyval(coeff_i, z))**2))
             
-            surf.coeffs = [np.zeros(order+1), coeff_o, coeff_i]
+            surf.coeffs = np.asarray([np.zeros(order+1), coeff_o, coeff_i])
             surf.errors = [None, error_o, error_i]
             
             Surfs.append(surf)
@@ -522,11 +532,104 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
         else:
             # not-island case
             # Leave all surfaces as they are.
-            surf.coeffs = [coeff, np.zeros(order+1), np.zeros(order+1)]
+            surf.coeffs = np.asarray(
+                [coeff, np.zeros(order+1), np.zeros(order+1)])
             surf.errors = [error, None, None]
             Surfs.append(surf)
         
     return Surfs
+
+def filter_surfaces_by_Radius(surfaces, R_range=None):
+    """
+    Filter flux surfaces and their points by radial coordinate R range
+    of the surface.
+
+    The input may be either a list of :class:`FluxSurface` instances (as
+    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
+    result object exposing ``poincare_res.surfs``.
+    Surfaces left with no points are dropped.
+
+    Parameters
+    ----------
+    surfaces : list of FluxSurface or field-line-tracer result
+        Source surfaces to filter.
+    R_range : sequence of float, optional
+        Two-element ``[min, max]`` interval (in metres) on the major
+        radius ``R`` of the surface (or part of it). 
+        If ``None`` (default), no constraint on ``R``.
+
+    Returns
+    -------
+    list of FluxSurface
+        New :class:`FluxSurface` instances containing only the points
+        that pass both the ``R`` surface (or part of it) filters. 
+        Surfaces that end up empty (or that started empty / had ``None``
+        coordinates) are omitted from the result.
+    """
+    
+    surfs = (surfaces if isinstance(surfaces, list) 
+             else surfaces.poincare_res.surfs)
+    filtered_surfs = list()
+    
+    for i, surf in enumerate(surfs):
+        type_to_save = list()
+        for i in range(len(surf.errors)):
+            if surf.errors[i] != None:
+                R_temp = surf.coeffs[i,2]
+                if (R_temp < R_range[1]) & (R_temp > R_range[0]): 
+                    type_to_save.append(i)
+        mask = np.isin(surf.points.point_type, type_to_save)
+        if np.any(mask):
+            surf.filter_points(mask)
+            filtered_surfs.append(surf)
+            
+    return filtered_surfs
+
+def filter_surfaces_by_error(surfaces, error_range=None):
+    """
+    Filter flux surfaces and their points by polinom fit error range.
+
+    The input may be either a list of :class:`FluxSurface` instances (as
+    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
+    result object exposing ``poincare_res.surfs``. 
+    Surfaces left with no points are dropped.
+
+    Parameters
+    ----------
+    surfaces : list of FluxSurface or field-line-tracer result
+        Source surfaces to filter.
+    error_range : sequence of float, optional
+        Two-element ``[start, end]`` slice (Python half-open semantics)
+        applied to the list of surfaces. If ``None`` (default), all
+        surfaces are kept.
+
+    Returns
+    -------
+    list of FluxSurface
+        New :class:`FluxSurface` instances containing only the points
+        that pass both the ``error_range`` filters. 
+        Surfaces that end up empty (or that started empty / had ``None``
+        coordinates) are omitted from the result.
+    """
+    
+    surfs = (surfaces if isinstance(surfaces, list) 
+             else surfaces.poincare_res.surfs)
+    filtered_surfs = list()
+    
+    for i, surf in enumerate(surfs):
+        type_to_save = list()
+        for i in range(len(surf.errors)):
+            if surf.errors[i] != None:
+                error_temp = surf.errors[i]
+                if ((error_temp < error_range[1]) & 
+                    (error_temp > error_range[0])): 
+                    type_to_save.append(i)
+        mask = np.isin(surf.points.point_type, type_to_save)
+        if np.any(mask):
+            surf.filter_points(mask)
+            filtered_surfs.append(surf)
+            
+    return filtered_surfs
 
 def plot_w7x_regimes(surfaces, labels, magnetic_conf='',
                      r_range=None, z_range=None, phi=np.nan, 
@@ -564,6 +667,7 @@ def plot_w7x_regimes(surfaces, labels, magnetic_conf='',
         figure is written as a PNG (a ``.png`` extension is appended if
         missing).
     """
+    
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
 
