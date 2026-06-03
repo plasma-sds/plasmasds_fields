@@ -14,7 +14,7 @@ class Points(object):
     
     r = sqrt(x1^2 + x2^2)
     z = x3
-    d = 0 (initial value)
+    density = 0 (initial value)
     The type of the point can be three values:
         - self.point_type = 0 -> not island point
         - self.point_type = 1 -> island point at outer surface
@@ -32,18 +32,17 @@ class Points(object):
             and third coordinate of each point. They are converted to
             ``numpy.ndarray`` on assignment.
         """
-        
-        self.n = len(x1)
+        n = len(x1)
         self.x1 = np.array(x1)                      # first coordinate
         self.x2 = np.array(x2)                      # second coordinate
         self.x3 = np.array(x3)                      # third coordinate
         self.r = np.sqrt(self.x1**2 + self.x2**2)   # radial distance
         self.z = self.x3                            # vertical coord
         
-        self.d = np.zeros(self.n)
-        self.d[:] = density
+        self.density = np.zeros(n)
+        self.density[:] = density
         
-        self.point_type = np.zeros(self.n, dtype=np.uint8)
+        self.point_type = np.zeros(n, dtype=np.uint8)
         self.point_type[:] = point_type
 
     def __array__(self, dtype=None):
@@ -105,7 +104,7 @@ class FluxSurface(object):
             Defaults to 0.
             
         Further attributes:
-        N : integer
+        n : integer
             number of points in the self.points arrays
         coeffs : list
             list of coefficient for each 'point_type' group
@@ -116,7 +115,7 @@ class FluxSurface(object):
         self.points = Points(x1, x2, x3, 
                              density=density, point_type=point_type)
         self.phi0 = phi0
-        self.N = np.shape(np.asarray(self.points))[1]
+        self.n = np.shape(np.asarray(self.points))[1]
         self.coeffs = [None]
         self.errors = [None]
 
@@ -133,8 +132,8 @@ class FluxSurface(object):
             'True' value.
         """
         
-        if mask is None: self.points.d[:] = value
-        else: self.points.d[mask] = value
+        if mask is None: self.points.density[:] = value
+        else: self.points.density[mask] = value
         
     def update_point_type(self, value, mask=None):
         """
@@ -165,7 +164,7 @@ class FluxSurface(object):
         for attr, value in vars(self.points).items():
             if isinstance(value, np.ndarray):
                 setattr(self.points, attr, value[mask])
-        self.N = sum(mask)
+        self.n = sum(mask)
 
 class Range(object):
     """ 
@@ -197,8 +196,8 @@ class Range(object):
         self.x3Max = max([np.max(surf.points.x3) for surf in flt])
         self.rMin  = min([np.min(surf.points.r ) for surf in flt])
         self.rMax  = max([np.max(surf.points.r ) for surf in flt])
-        self.dMin  = min([np.min(surf.points.d ) for surf in flt])
-        self.dMax  = max([np.max(surf.points.d ) for surf in flt])
+        self.densityMin  = min([np.min(surf.points.density ) for surf in flt])
+        self.densityMax  = max([np.max(surf.points.density ) for surf in flt])
         self.zMin  = self.x3Min
         self.zMax  = self.x3Max
         
@@ -206,7 +205,7 @@ class Range(object):
         self.x2 = [self.x2Min, self.x2Max]
         self.x3 = [self.x3Min, self.x3Max]
         self.r  = [self.rMin , self.rMax ]
-        self.d  = [self.dMin , self.dMax ]
+        self.density  = [self.densityMin , self.densityMax ]
         self.z  = [self.zMin , self.zMax ]
 
 def load_w7x_flux_surfaces(filename):
@@ -324,8 +323,6 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
               "purple", "indigo", "violet"]
     fig, ax = plt.subplots()
 
-    num_surfaces = len(surfaces)
-
     for i, surface in enumerate(surfaces):
         if surface.points.x1 is not None and len(surface.points.x1) > 0:
             r = surface.points.r
@@ -417,7 +414,7 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     filtered_surfs = []
     
     for surf in surfs:
-        if type(surf.points.x1) != type(None) and len(surf.points.x1) > 0:
+        if type(surf.points.x1) != type(None) and surf.n > 0:
             # Calculate R and Z coordinates
             r_temp = surf.points.r
             z_temp = surf.points.z
@@ -426,12 +423,12 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
             if r_range is not None:
                 r_mask = (r_temp >= r_range[0]) & (r_temp <= r_range[1])
             else:
-                r_mask = np.ones(len(r_temp), dtype=bool)
+                r_mask = np.ones(surf.n, dtype=bool)
             
             if z_range is not None:
                 z_mask = (z_temp >= z_range[0]) & (z_temp <= z_range[1])
             else:
-                z_mask = np.ones(len(z_temp), dtype=bool)
+                z_mask = np.ones(surf.n, dtype=bool)
             
             # Keep only points within both ranges
             mask = r_mask & z_mask
@@ -505,7 +502,7 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
         # Conditions to differentiate island and not-island surfaces:
         # Error is high | or | the number of points are large
         condition_1 = error > limit_error
-        condition_2 = surf.N > limit_number
+        condition_2 = surf.n > limit_number
         if (condition_1 or condition_2):
             
             

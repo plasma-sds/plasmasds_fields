@@ -125,12 +125,13 @@ def add_density_by_type(flt, density_function):
 
 def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     """
-    Filter flux surfaces by their assigned density.
+    Filter list of FluxSurface objects by their assigned density.
 
     By default, surfaces whose ``density`` is exactly ``0`` (e.g. surfaces
-    that were never assigned a density by :func:`add_density_to_fields`)
+    that were never assigned a density by :func:`add_density_by_type`)
     are dropped. Optionally a ``[lower, upper]`` density range can be
-    supplied to keep only surfaces whose density falls within those bounds.
+    supplied to keep only points in surfaces whose density falls
+    within those bounds.
 
     Parameters
     ----------
@@ -138,11 +139,11 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         Either a list of :class:`FluxSurface` instances or an object
         exposing ``flt.poincare_res.surfs``.
     density_range : sequence of float, optional
-        Two-element ``[lower, upper]`` interval on ``surf.density``.
+        Two-element ``[lower, upper]`` interval on ``surf.points.density``.
         If ``None`` (default), no upper/lower bound is imposed beyond the
         ``include_zero`` rule.
     include_zero : bool, default False
-        If ``False`` (default), surfaces with ``density == 0`` are always
+        If ``False`` (default), points with ``density == 0`` are always
         dropped. If ``True``, zero-density surfaces are kept (subject to
         ``density_range`` if it is supplied).
 
@@ -156,16 +157,28 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
 
     filtered_surfs = []
     for surf in surfs:
-        density = surf.density
-
-        if not include_zero and density == 0:
-            continue
-
+        density_temp = surf.points.density
+        
         if density_range is not None:
-            if density < density_range[0] or density > density_range[1]:
-                continue
-
-        filtered_surfs.append(surf)
+            density_mask = ((density_temp >= density_range[0])
+                            & (density_temp <= density_range[1]))
+        else:
+            density_mask = np.ones(surf.n, dtype=bool)
+            
+        if include_zero: 
+            not_zero_mask = density_temp != 0
+        else:
+            not_zero_mask = np.ones(surf.n, dtype=bool)
+        
+        # Keep only points within both ranges
+        mask = density_mask & not_zero_mask
+        
+        # Only include surface if it has at least one point
+        # within the ranges
+        if np.any(mask):
+            # Filter the points
+            surf.filter_points(mask)
+            filtered_surfs.append(surf)
 
     return filtered_surfs
 
@@ -271,27 +284,28 @@ def extract_points(surfaces):
             r radial position of all the points in the list of surfaces.
         "z" : ndarray of shape (N,)
             z vertical position of all the points in the list of surfaces.
-        "d" : ndarray of shape (N,)
-            d density of all the points in the list of surfaces.
+        "density" : ndarray of shape (N,)
+            density of all the points in the list of surfaces.
         "point_type" : ndarray of shape (N,)
             the type of all the points in the list of surfaces, related to
             island trajectories.
-        "R" : ndarray of shape (N,)
+        "surface_radius" : ndarray of shape (N,)
             The radial position of the surface (or part of it).
     """
     
     data = {"x1": list(), "x2": list(), "x3": list(), 
-            "r": list(), "z": list(), "d": list(), 
-            "point_type": list(), "R": list()}
+            "r": list(), "z": list(), "density": list(), 
+            "point_type": list(), "surface_radius": list()}
     for surf in surfaces:
         data["x1"] += surf.points.x1.tolist()
         data["x2"] += surf.points.x2.tolist()
         data["x3"] += surf.points.x3.tolist()
         data["r"] += surf.points.r.tolist()
         data["z"] += surf.points.z.tolist()
-        data["d"] += surf.points.d.tolist()
+        data["density"] += surf.points.density.tolist()
         data["point_type"] += surf.points.point_type.tolist()
-        data["R"] += surf.coeffs[:, 2][surf.points.point_type].tolist()
+        data["surface_radius"] += surf.coeffs[:, 2][surf.points.point_type
+                                                    ].tolist()
         
     for key in data.keys():
         data[key] = np.array(data[key])
