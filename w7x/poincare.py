@@ -14,14 +14,13 @@ class Points(object):
     
     r = sqrt(x1^2 + x2^2)
     z = x3
-    density = 0 (initial value)
     The type of the point can be three values:
         - self.point_type = 0 -> not island point
         - self.point_type = 1 -> island point at outer surface
         - self.point_type = 2 -> island point at inner surface
     """
 
-    def __init__(self, x1, x2, x3, density=0, point_type=0):
+    def __init__(self, x1, x2, x3, point_type=0):
         """
         Initialize a ``Points`` instance from three coordinate sequences.
 
@@ -38,9 +37,6 @@ class Points(object):
         self.x3 = np.array(x3)                      # third coordinate
         self.r = np.sqrt(self.x1**2 + self.x2**2)   # radial distance
         self.z = self.x3                            # vertical coord
-        
-        self.density = np.zeros(n)
-        self.density[:] = density
         
         self.point_type = np.zeros(n, dtype=np.uint8)
         self.point_type[:] = point_type
@@ -110,16 +106,19 @@ class FluxSurface(object):
             list of coefficient for each 'point_type' group
         errors : list
             list of coefficient for each 'point_type' group
+        density : list
+            list of density values for each 'point_type' group
         """
         
         self.points = Points(x1, x2, x3, 
-                             density=density, point_type=point_type)
+                             point_type=point_type)
         self.phi0 = phi0
         self.n = np.shape(np.asarray(self.points))[1]
         self.coeffs = [None]
         self.errors = [None]
+        self.density = [density]
 
-    def update_density(self, value, mask=None):
+    def update_density(self, value, ind=None):
         """
         Update the density of the surface.
 
@@ -127,13 +126,11 @@ class FluxSurface(object):
         ----------
         value : float or array
             New bulk density value or density distribution.
-        mask : array, optional
-            If given, overwrite only the density values where the mask has 
-            'True' value.
+        ind : integer
+            The index of a 'point_type' group
         """
-        
-        if mask is None: self.points.density[:] = value
-        else: self.points.density[mask] = value
+        if ind != None: self.density[ind] = value
+        else: self.density = [value for i in range(len(self.density))]
         
     def update_point_type(self, value, mask=None):
         """
@@ -163,6 +160,7 @@ class FluxSurface(object):
         
         for attr, value in vars(self.points).items():
             if isinstance(value, np.ndarray):
+                # print(attr)
                 setattr(self.points, attr, value[mask])
         self.n = sum(mask)
 
@@ -196,8 +194,8 @@ class Range(object):
         self.x3Max = max([np.max(surf.points.x3) for surf in flt])
         self.rMin  = min([np.min(surf.points.r ) for surf in flt])
         self.rMax  = max([np.max(surf.points.r ) for surf in flt])
-        self.densityMin  = min([np.min(surf.points.density ) for surf in flt])
-        self.densityMax  = max([np.max(surf.points.density ) for surf in flt])
+        self.densityMin  = min([min(surf.density ) for surf in flt])
+        self.densityMax  = max([max(surf.density ) for surf in flt])
         self.zMin  = self.x3Min
         self.zMax  = self.x3Max
         
@@ -491,7 +489,7 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
     """
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
-    Surfs = list()
+    surfaces = list()
     
     for i, surf in enumerate(surfs):
         r, z = surf.points.r, surf.points.z
@@ -505,8 +503,8 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
         condition_2 = surf.n > limit_number
         if (condition_1 or condition_2):
             
+            # island case: split surface to inner and outer side
             
-            # island case: split surface to low and high field side
             p = np.polyval(coeff, z)    # center line by polyfit
             o = r-p > 0                 # outer side point mask
             i = np.invert(o)            # inner side point mask
@@ -523,18 +521,23 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
             
             surf.coeffs = np.asarray([np.zeros(order+1), coeff_o, coeff_i])
             surf.errors = [None, error_o, error_i]
+            surf.density = [0, 0, 0]
             
-            Surfs.append(surf)
+            surfaces.append(surf)
             
         else:
+            
             # not-island case
             # Leave all surfaces as they are.
+            
             surf.coeffs = np.asarray(
                 [coeff, np.zeros(order+1), np.zeros(order+1)])
             surf.errors = [error, None, None]
-            Surfs.append(surf)
+            surf.density = [0, 0, 0]
+            
+            surfaces.append(surf)
         
-    return Surfs
+    return surfaces
 
 def filter_surfaces_by_Radius(surfaces, R_range=None):
     """

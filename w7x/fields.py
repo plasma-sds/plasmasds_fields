@@ -3,7 +3,7 @@ import numpy as np
 
 def add_density_by_type(flt, density_function):
     """
-    Assign a density to each surface based on the R of the surface's
+    Assign a density to each surface based on the type of the surface
     points, obtained prior (for example by polinom fit)
 
     Parameters
@@ -30,10 +30,8 @@ def add_density_by_type(flt, density_function):
     
     for surf in surfs:
         for i in range(len(surf.errors)):
-            mask = surf.points.point_type == i
-            if np.any(mask):
-                dens = density_function(surf.coeffs[i, 2])
-                surf.update_density(dens, mask=mask)
+            dens = density_function(surf.coeffs[i, 2])
+            surf.update_density(float(dens), ind=i)
                 
     return surfs
 
@@ -71,21 +69,17 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
 
     filtered_surfs = []
     for surf in surfs:
-        density_temp = surf.points.density
         
-        if density_range is not None:
-            density_mask = ((density_temp >= density_range[0])
-                            & (density_temp <= density_range[1]))
-        else:
-            density_mask = np.ones(surf.n, dtype=bool)
+        mask = np.zeros(surf.n, dtype=bool)
+        print(surf.density)
+        for i, dens in enumerate(surf.density):
             
-        if include_zero: 
-            not_zero_mask = density_temp != 0
-        else:
-            not_zero_mask = np.ones(surf.n, dtype=bool)
+            if not include_zero and dens == 0: continue
+            
+            if density_range is None or (dens >= density_range[0] and 
+                                         dens <= density_range[1]):
+                mask = mask | (surf.points.point_type == i)
         
-        # Keep only points within both ranges
-        mask = density_mask & not_zero_mask
         
         # Only include surface if it has at least one point
         # within the ranges
@@ -140,7 +134,8 @@ def extract_points(surfaces):
         data["x3"] += surf.points.x3.tolist()
         data["r"] += surf.points.r.tolist()
         data["z"] += surf.points.z.tolist()
-        data["density"] += surf.points.density.tolist()
+        density = np.array(surf.density)[surf.points.point_type]
+        data["density"] += density.tolist()
         data["point_type"] += surf.points.point_type.tolist()
         data["surface_radius"] += surf.coeffs[:, 2][surf.points.point_type
                                                     ].tolist()
