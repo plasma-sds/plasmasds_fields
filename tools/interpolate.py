@@ -16,9 +16,9 @@ class ProfileInterpolator1D:
         self.original_profile = np.array(profile)
         self.original_R = np.array(R)
 
-        # Working arrays start as a sorted copy of the originals; corrections
-        # accumulate by overwriting entries in self.profile in place.
-        self.reset()
+        self.R = np.copy(self.original_R)
+        self.profile = np.copy(self.original_profile)
+        self.interpolator = interp1d(self.R, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def reset(self):
         """Reset ``self.R`` / ``self.profile`` to the originals and rebuild the interpolator.
