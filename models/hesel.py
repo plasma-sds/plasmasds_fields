@@ -163,15 +163,31 @@ class HESEL:
         return f"HESEL(path={self.path!r}, R={nR}, Z={nZ}, time={nT})"
 
 
-def expand_hesel(field, Z_axis, n, axis=-2):
+def expand_hesel(field, R_axis, Z_axis, n_z=1, n_sol=0, n_edge=0,
+                 r_axis=-1, z_axis=-2):
     """
-    Vertically stack a HESEL field ``n`` times along the Z direction.
+    Expand a HESEL field along R and/or Z in any combination.
 
-    Assumes the field is periodic along ``axis`` so that ``n`` copies
-    can be concatenated end-to-end without overlap, producing ``n``
-    adjacent periods of the underlying field. The matching Z axis is
-    extended on the same uniform grid (period ``L = N * dZ``, where
-    ``N = Z_axis.size`` and ``dZ = Z_axis[1] - Z_axis[0]``).
+    Three independent expansions are supported, each gated by its
+    count and any combination of them may be requested in a single
+    call:
+
+    * **Edge** (inner R, ``n_edge > 0``): prepend ``n_edge`` new R
+      samples below ``R_axis[0]``, filled with a constant ceiling
+      value per outer-dimension frame. The ceiling is the Z-average
+      of the innermost R column of ``field``.
+    * **SOL** (outer R, ``n_sol > 0``): append ``n_sol`` new R
+      samples above ``R_axis[-1]``, filled with a constant bottom
+      value per frame. The bottom is the Z-average of the outermost
+      R column of ``field``.
+    * **Z periodic stacking** (``n_z > 1``): concatenate ``n_z``
+      copies of the field along the Z axis, assuming periodic
+      boundary conditions in Z (no duplicated boundary row).
+
+    Both extended axes stay on the original uniform grids
+    (``dR = R_axis[1] - R_axis[0]``, ``dZ = Z_axis[1] - Z_axis[0]``).
+    The defaults ``n_z=1, n_sol=0, n_edge=0`` make the call a no-op
+    that simply returns the inputs coerced to arrays.
 
     Parameters
     ----------
@@ -179,169 +195,86 @@ def expand_hesel(field, Z_axis, n, axis=-2):
         The field to expand. Typical layouts are ``(time, Z, R)`` as
         produced by :meth:`HESEL.extract_field`, or 2-D snapshots
         ``(Z, R)`` when the time axis has been collapsed.
-    Z_axis : array-like
-        1-D, uniformly spaced Z coordinate axis matching the ``axis``
-        dimension of ``field``.
-    n : int
-        Number of copies to stack. Must be a positive integer.
-    axis : int, default -2
-        Axis along which to stack. The default ``-2`` corresponds to
-        the Z dimension for both ``(time, Z, R)`` and ``(Z, R)``
-        arrays.
+    R_axis, Z_axis : array-like
+        1-D, uniformly spaced R and Z coordinate axes matching the
+        ``r_axis`` and ``z_axis`` dimensions of ``field``.
+    n_z : int, default 1
+        Number of periodic copies to stack along Z. ``1`` leaves Z
+        unchanged.
+    n_sol : int, default 0
+        Number of SOL samples to append on the high-R side. ``0``
+        leaves the high-R end unchanged.
+    n_edge : int, default 0
+        Number of edge samples to prepend on the low-R side. ``0``
+        leaves the low-R end unchanged.
+    r_axis : int, default -1
+        Axis of ``field`` corresponding to R.
+    z_axis : int, default -2
+        Axis of ``field`` corresponding to Z.
 
     Returns
     -------
     field_expanded : numpy.ndarray
-        The tiled field. Same dtype as ``field`` and same shape except
-        the length of ``axis`` is multiplied by ``n``.
+        The expanded field. Same dtype as ``field``, with the R axis
+        grown by ``n_edge + n_sol`` and the Z axis multiplied by
+        ``n_z``.
+    R_expanded : numpy.ndarray
+        The extended R axis (ascending), length
+        ``R_axis.size + n_edge + n_sol``.
     Z_expanded : numpy.ndarray
-        The extended Z axis, of length ``n * Z_axis.size`` and the
-        same spacing as ``Z_axis``.
+        The extended Z axis, length ``n_z * Z_axis.size``.
     """
-    if not isinstance(n, (int, np.integer)) or n < 1:
-        raise ValueError(f"n must be a positive integer; got {n!r}.")
+    for name, n in (("n_z", n_z), ("n_sol", n_sol), ("n_edge", n_edge)):
+        if not isinstance(n, (int, np.integer)):
+            raise ValueError(f"{name} must be an integer; got {n!r}.")
+    if n_z < 1:
+        raise ValueError(f"n_z must be >= 1; got {n_z!r}.")
+    if n_sol < 0 or n_edge < 0:
+        raise ValueError(
+            f"n_sol and n_edge must be >= 0; got n_sol={n_sol}, n_edge={n_edge}."
+        )
+
     field = np.asarray(field)
+    R_axis = np.asarray(R_axis)
     Z_axis = np.asarray(Z_axis)
-    if n == 1:
-        return field, Z_axis
 
-    field_expanded = np.concatenate([field] * n, axis=axis)
+    def _radial_extend(field, r_index, count):
+        """Build a Z-averaged constant extension of ``count`` R samples
+        taken at ``r_index`` (an integer R index into ``field``)."""
+        slc = [slice(None)] * field.ndim
+        slc[r_axis] = slice(r_index, r_index + 1) if r_index >= 0 else slice(r_index, None)
+        column = field[tuple(slc)]
+        fill = column.mean(axis=z_axis, keepdims=True)
+        ext_shape = list(field.shape)
+        ext_shape[r_axis] = count
+        return np.broadcast_to(fill, ext_shape)
 
-    N = Z_axis.size
-    L = N * (Z_axis[1] - Z_axis[0])
-    Z_expanded = np.concatenate([Z_axis + i * L for i in range(n)])
+    if n_edge > 0:
+        edge_ext = _radial_extend(field, 0, n_edge)
+        field = np.concatenate([edge_ext, field], axis=r_axis)
 
-    return field_expanded, Z_expanded
+    if n_sol > 0:
+        sol_ext = _radial_extend(field, -1, n_sol)
+        field = np.concatenate([field, sol_ext], axis=r_axis)
 
-
-def expand_sol(field, R_axis, n_sol, axis=-1, z_axis=-2):
-    """
-    Extend a HESEL field outward in the R direction with a flat SOL.
-
-    Appends ``n_sol`` new R samples beyond the current high-R end of
-    ``R_axis`` (uniformly spaced at ``dR = R_axis[1] - R_axis[0]``)
-    and fills the extension with a constant value per outer-dimension
-    frame. The fill value is the Z-average of the field taken at the
-    outermost R column (i.e. ``field[..., -1]`` after collapsing the
-    Z axis with the mean), so every new R sample at every Z position
-    inside a given frame gets the same scalar.
-
-    Parameters
-    ----------
-    field : array-like
-        The field to expand. Typical layouts are ``(time, Z, R)`` as
-        produced by :meth:`HESEL.extract_field`, or 2-D snapshots
-        ``(Z, R)`` when the time axis has been collapsed.
-    R_axis : array-like
-        1-D, uniformly spaced R coordinate axis matching the ``axis``
-        dimension of ``field``.
-    n_sol : int
-        Number of SOL samples to append on the high-R side. Must be
-        a positive integer.
-    axis : int, default -1
-        Axis of ``field`` corresponding to R. The default ``-1`` is
-        correct for both ``(time, Z, R)`` and ``(Z, R)`` arrays.
-    z_axis : int, default -2
-        Axis of ``field`` corresponding to Z (used to compute the
-        Z-average fill value).
-
-    Returns
-    -------
-    field_expanded : numpy.ndarray
-        The field with the SOL extension appended along ``axis``.
-        Same dtype as ``field`` and same shape except the length of
-        ``axis`` becomes ``R_axis.size + n_sol``.
-    R_expanded : numpy.ndarray
-        The extended R axis, of length ``R_axis.size + n_sol`` and
-        the same spacing as ``R_axis``.
-    """
-    if not isinstance(n_sol, (int, np.integer)) or n_sol < 1:
-        raise ValueError(f"n_sol must be a positive integer; got {n_sol!r}.")
-    field = np.asarray(field)
-    R_axis = np.asarray(R_axis)
-
-    last_R_slc = [slice(None)] * field.ndim
-    last_R_slc[axis] = slice(-1, None)
-    last_R_column = field[tuple(last_R_slc)]
-
-    fill_value = last_R_column.mean(axis=z_axis, keepdims=True)
-
-    ext_shape = list(field.shape)
-    ext_shape[axis] = n_sol
-    extension = np.broadcast_to(fill_value, ext_shape)
-
-    field_expanded = np.concatenate([field, extension], axis=axis)
+    if n_z > 1:
+        field = np.concatenate([field] * n_z, axis=z_axis)
 
     dR = R_axis[1] - R_axis[0]
-    R_expanded = np.concatenate(
-        [R_axis, R_axis[-1] + dR * np.arange(1, n_sol + 1)]
-    )
+    R_expanded = R_axis
+    if n_edge > 0:
+        R_expanded = np.concatenate(
+            [R_axis[0] - dR * np.arange(n_edge, 0, -1), R_expanded]
+        )
+    if n_sol > 0:
+        R_expanded = np.concatenate(
+            [R_expanded, R_axis[-1] + dR * np.arange(1, n_sol + 1)]
+        )
 
-    return field_expanded, R_expanded
+    if n_z > 1:
+        L = Z_axis.size * (Z_axis[1] - Z_axis[0])
+        Z_expanded = np.concatenate([Z_axis + i * L for i in range(n_z)])
+    else:
+        Z_expanded = Z_axis
 
-
-def expand_edge(field, R_axis, n_edge, axis=-1, z_axis=-2):
-    """
-    Extend a HESEL field inward in the R direction with a flat edge.
-
-    Prepends ``n_edge`` new R samples below the current low-R end of
-    ``R_axis`` (uniformly spaced at ``dR = R_axis[1] - R_axis[0]``)
-    and fills the extension with a constant ceiling value per
-    outer-dimension frame. The ceiling value is the Z-average of the
-    field taken at the innermost R column (i.e. ``field[..., 0]``
-    after collapsing the Z axis with the mean), so every new R sample
-    at every Z position inside a given frame gets the same scalar.
-
-    Parameters
-    ----------
-    field : array-like
-        The field to expand. Typical layouts are ``(time, Z, R)`` as
-        produced by :meth:`HESEL.extract_field`, or 2-D snapshots
-        ``(Z, R)`` when the time axis has been collapsed.
-    R_axis : array-like
-        1-D, uniformly spaced R coordinate axis matching the ``axis``
-        dimension of ``field``.
-    n_edge : int
-        Number of edge samples to prepend on the low-R side. Must be
-        a positive integer.
-    axis : int, default -1
-        Axis of ``field`` corresponding to R. The default ``-1`` is
-        correct for both ``(time, Z, R)`` and ``(Z, R)`` arrays.
-    z_axis : int, default -2
-        Axis of ``field`` corresponding to Z (used to compute the
-        Z-average ceiling value).
-
-    Returns
-    -------
-    field_expanded : numpy.ndarray
-        The field with the edge extension prepended along ``axis``.
-        Same dtype as ``field`` and same shape except the length of
-        ``axis`` becomes ``R_axis.size + n_edge``.
-    R_expanded : numpy.ndarray
-        The extended R axis, of length ``R_axis.size + n_edge`` and
-        the same spacing as ``R_axis``, sorted in ascending order
-        (the ``n_edge`` new samples sit below ``R_axis[0]``).
-    """
-    if not isinstance(n_edge, (int, np.integer)) or n_edge < 1:
-        raise ValueError(f"n_edge must be a positive integer; got {n_edge!r}.")
-    field = np.asarray(field)
-    R_axis = np.asarray(R_axis)
-
-    first_R_slc = [slice(None)] * field.ndim
-    first_R_slc[axis] = slice(0, 1)
-    first_R_column = field[tuple(first_R_slc)]
-
-    fill_value = first_R_column.mean(axis=z_axis, keepdims=True)
-
-    ext_shape = list(field.shape)
-    ext_shape[axis] = n_edge
-    extension = np.broadcast_to(fill_value, ext_shape)
-
-    field_expanded = np.concatenate([extension, field], axis=axis)
-
-    dR = R_axis[1] - R_axis[0]
-    R_expanded = np.concatenate(
-        [R_axis[0] - dR * np.arange(n_edge, 0, -1), R_axis]
-    )
-
-    return field_expanded, R_expanded
+    return field, R_expanded, Z_expanded
