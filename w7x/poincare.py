@@ -631,9 +631,10 @@ def filter_surfaces_by_error(surfaces, error_range=None):
             
     return filtered_surfs
 
-def plot_w7x_regimes(surfaces, labels, magnetic_conf='',
-                     r_range=None, z_range=None, phi=np.nan, 
-                     boxes=None, aspect=False, save_image=False, legend=False):
+def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
+                          r_range=None, z_range=None, phi=np.nan, 
+                          boxes=None, aspect=False, 
+                          save_image=False, legend=False):
     """
     Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
     Highlight different regimes based on the types array
@@ -685,8 +686,8 @@ def plot_w7x_regimes(surfaces, labels, magnetic_conf='',
         else:
             print("Surface {} contains no points!".format(i + 1))
     
-    for i in range(len(labels)): plt.scatter([0],[0], s=50, 
-                                   c=colors[i], label=labels[i])
+    for i in range(len(labels)): 
+        plt.scatter([0],[0], s=50, c=colors[i], label=labels[i])
     ax.set_xlabel("R [m]")
     ax.set_ylabel("z [m]")
 
