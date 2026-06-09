@@ -278,3 +278,70 @@ def expand_sol(field, R_axis, n_sol, axis=-1, z_axis=-2):
     )
 
     return field_expanded, R_expanded
+
+
+def expand_edge(field, R_axis, n_edge, axis=-1, z_axis=-2):
+    """
+    Extend a HESEL field inward in the R direction with a flat edge.
+
+    Prepends ``n_edge`` new R samples below the current low-R end of
+    ``R_axis`` (uniformly spaced at ``dR = R_axis[1] - R_axis[0]``)
+    and fills the extension with a constant ceiling value per
+    outer-dimension frame. The ceiling value is the Z-average of the
+    field taken at the innermost R column (i.e. ``field[..., 0]``
+    after collapsing the Z axis with the mean), so every new R sample
+    at every Z position inside a given frame gets the same scalar.
+
+    Parameters
+    ----------
+    field : array-like
+        The field to expand. Typical layouts are ``(time, Z, R)`` as
+        produced by :meth:`HESEL.extract_field`, or 2-D snapshots
+        ``(Z, R)`` when the time axis has been collapsed.
+    R_axis : array-like
+        1-D, uniformly spaced R coordinate axis matching the ``axis``
+        dimension of ``field``.
+    n_edge : int
+        Number of edge samples to prepend on the low-R side. Must be
+        a positive integer.
+    axis : int, default -1
+        Axis of ``field`` corresponding to R. The default ``-1`` is
+        correct for both ``(time, Z, R)`` and ``(Z, R)`` arrays.
+    z_axis : int, default -2
+        Axis of ``field`` corresponding to Z (used to compute the
+        Z-average ceiling value).
+
+    Returns
+    -------
+    field_expanded : numpy.ndarray
+        The field with the edge extension prepended along ``axis``.
+        Same dtype as ``field`` and same shape except the length of
+        ``axis`` becomes ``R_axis.size + n_edge``.
+    R_expanded : numpy.ndarray
+        The extended R axis, of length ``R_axis.size + n_edge`` and
+        the same spacing as ``R_axis``, sorted in ascending order
+        (the ``n_edge`` new samples sit below ``R_axis[0]``).
+    """
+    if not isinstance(n_edge, (int, np.integer)) or n_edge < 1:
+        raise ValueError(f"n_edge must be a positive integer; got {n_edge!r}.")
+    field = np.asarray(field)
+    R_axis = np.asarray(R_axis)
+
+    first_R_slc = [slice(None)] * field.ndim
+    first_R_slc[axis] = slice(0, 1)
+    first_R_column = field[tuple(first_R_slc)]
+
+    fill_value = first_R_column.mean(axis=z_axis, keepdims=True)
+
+    ext_shape = list(field.shape)
+    ext_shape[axis] = n_edge
+    extension = np.broadcast_to(fill_value, ext_shape)
+
+    field_expanded = np.concatenate([extension, field], axis=axis)
+
+    dR = R_axis[1] - R_axis[0]
+    R_expanded = np.concatenate(
+        [R_axis[0] - dR * np.arange(n_edge, 0, -1), R_axis]
+    )
+
+    return field_expanded, R_expanded
