@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.interpolate import interp1d
+import matplotlib.pyplot as plt
 
 class ProfileInterpolator1D:
     def __init__(self, profile, position):
@@ -156,7 +157,6 @@ class ProfileInterpolator1D:
         matplotlib.axes.Axes
             The axes that were drawn on.
         """
-        import matplotlib.pyplot as plt
 
         created_fig = ax is None
         if created_fig:
