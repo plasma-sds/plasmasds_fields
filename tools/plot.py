@@ -3,32 +3,32 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
 
 
-def contour_density(R, Z, density, r_range=None, z_range=None, levels=None, filled=True,
+def contour_field(R, Z, field, r_range=None, z_range=None, levels=None, filled=True,
 log=False, cmap=None, ax=None, colorbar=True, cbar_label="Density [m^-3]",
 equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=None):
 
     """
-    Contour-plot a density field on the (R, Z) plane.
+    Contour-plot a scalar field on the (R, Z) plane.
 
     Accepts either a regular grid (as produced by
     :func:`w7x.fields.make_regular_density_field`) or scattered data
-    (as produced by :func:`w7x.fields.extract_density_and_points`):
+    (as produced by :func:`w7x.fields.extract_points`):
 
     * **Regular**: ``R`` and ``Z`` are 1-D coordinate axes of length
-      ``nR`` and ``nZ`` respectively, ``density`` is 2-D with shape
+      ``nR`` and ``nZ`` respectively, ``field`` is 2-D with shape
       ``(nZ, nR)``. Plotted with :meth:`~matplotlib.axes.Axes.contourf`
       / :meth:`~matplotlib.axes.Axes.contour`.
-    * **Scattered**: ``R``, ``Z``, ``density`` are 1-D arrays of equal
+    * **Scattered**: ``R``, ``Z``, ``field`` are 1-D arrays of equal
       length ``N``. Plotted with
       :meth:`~matplotlib.axes.Axes.tricontourf` /
       :meth:`~matplotlib.axes.Axes.tricontour`.
 
-    Detection is automatic from ``density.ndim``.
+    Detection is automatic from ``field.ndim``.
 
     Parameters
     ----------
-    R, Z, density : array_like
-        Density field, in either the regular or scattered layout
+    R, Z, field : array_like
+        Scalar field, in either the regular or scattered layout
         described above.
     r_range, z_range : sequence of float, optional
         Two-element ``[min, max]`` ranges on R and Z. If supplied, the
@@ -37,7 +37,7 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     levels : int or array_like, optional
         Number of contour levels, or explicit level values, forwarded
         to matplotlib. If ``log=True`` and ``levels`` is ``None``, a
-        log-spaced default is generated from the positive density
+        log-spaced default is generated from the positive field
         values.
     filled : bool, default True
         ``True`` for filled contours (``contourf`` / ``tricontourf``),
@@ -59,7 +59,7 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
         the same scale. Set to ``False`` to let matplotlib stretch the
         plot to fill the axes.
     title : str, optional
-        Axes title, drawn in bold. Defaults to ``"W7X 2D density plot"``;
+        Axes title, drawn in bold. Defaults to ``"W7X 2D field plot"``;
         set to ``None`` or ``""`` to omit.
     contour_lines : bool, default False
         If ``True``, overlay thin black contour lines on top of the
@@ -82,44 +82,44 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
 
     R = np.asarray(R)
     Z = np.asarray(Z)
-    density = np.asarray(density)
+    field = np.asarray(field)
 
-    is_regular = density.ndim == 2
+    is_regular = field.ndim == 2
 
     if is_regular:
-        if R.ndim != 1 or Z.ndim != 1 or density.shape != (Z.size, R.size):
+        if R.ndim != 1 or Z.ndim != 1 or field.shape != (Z.size, R.size):
             raise ValueError(
-                "For a regular grid, R and Z must be 1-D and density must "
+                "For a regular grid, R and Z must be 1-D and field must "
                 f"have shape (Z.size, R.size); got R{R.shape}, Z{Z.shape}, "
-                f"density{density.shape}."
+                f"field{field.shape}."
             )
         if r_range is not None:
             r_mask = (R >= r_range[0]) & (R <= r_range[1])
             R = R[r_mask]
-            density = density[:, r_mask]
+            field = field[:, r_mask]
         if z_range is not None:
             z_mask = (Z >= z_range[0]) & (Z <= z_range[1])
             Z = Z[z_mask]
-            density = density[z_mask, :]
+            field = field[z_mask, :]
     else:
-        if R.shape != Z.shape or R.shape != density.shape:
+        if R.shape != Z.shape or R.shape != field.shape:
             raise ValueError(
-                "For scattered data, R, Z and density must be 1-D arrays of "
+                "For scattered data, R, Z and field must be 1-D arrays of "
                 f"the same length; got R{R.shape}, Z{Z.shape}, "
-                f"density{density.shape}."
+                f"field{field.shape}."
             )
         mask = np.ones_like(R, dtype=bool)
         if r_range is not None:
             mask &= (R >= r_range[0]) & (R <= r_range[1])
         if z_range is not None:
             mask &= (Z >= z_range[0]) & (Z <= z_range[1])
-        R, Z, density = R[mask], Z[mask], density[mask]
+        R, Z, field = R[mask], Z[mask], field[mask]
 
     if log and levels is None:
-        positive = density[density > 0]
+        positive = field[field > 0]
         if positive.size:
             vmin = float(positive.min())
-            vmax = float(density.max())
+            vmax = float(field.max())
             if vmax > vmin:
                 levels = np.logspace(np.log10(vmin), np.log10(vmax), 30)
 
@@ -135,11 +135,11 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
         plotter = ax.contourf if filled else ax.contour
     else:
         plotter = ax.tricontourf if filled else ax.tricontour
-    cs = plotter(R, Z, density, **contour_kwargs)
+    cs = plotter(R, Z, field, **contour_kwargs)
 
     if contour_lines:
         line_plotter = ax.contour if is_regular else ax.tricontour
-        line_plotter(R, Z, density, levels=cs.levels, colors="black", linewidths=0.5)
+        line_plotter(R, Z, field, levels=cs.levels, colors="black", linewidths=0.5)
 
     ax.set_xlabel("R [m]", fontweight="bold")
     ax.set_ylabel("Z [m]", fontweight="bold")
