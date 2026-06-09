@@ -161,3 +161,54 @@ class HESEL:
         nZ = getattr(self.Z_axis, "size", 0)
         nT = getattr(self.time_axis, "size", 0)
         return f"HESEL(path={self.path!r}, R={nR}, Z={nZ}, time={nT})"
+
+
+def expand_hesel(field, Z_axis, n, axis=-2):
+    """
+    Vertically stack a HESEL field ``n`` times along the Z direction.
+
+    Assumes the field is periodic along ``axis`` so that ``n`` copies
+    can be concatenated end-to-end without overlap, producing ``n``
+    adjacent periods of the underlying field. The matching Z axis is
+    extended on the same uniform grid (period ``L = N * dZ``, where
+    ``N = Z_axis.size`` and ``dZ = Z_axis[1] - Z_axis[0]``).
+
+    Parameters
+    ----------
+    field : array-like
+        The field to expand. Typical layouts are ``(time, Z, R)`` as
+        produced by :meth:`HESEL.extract_field`, or 2-D snapshots
+        ``(Z, R)`` when the time axis has been collapsed.
+    Z_axis : array-like
+        1-D, uniformly spaced Z coordinate axis matching the ``axis``
+        dimension of ``field``.
+    n : int
+        Number of copies to stack. Must be a positive integer.
+    axis : int, default -2
+        Axis along which to stack. The default ``-2`` corresponds to
+        the Z dimension for both ``(time, Z, R)`` and ``(Z, R)``
+        arrays.
+
+    Returns
+    -------
+    field_expanded : numpy.ndarray
+        The tiled field. Same dtype as ``field`` and same shape except
+        the length of ``axis`` is multiplied by ``n``.
+    Z_expanded : numpy.ndarray
+        The extended Z axis, of length ``n * Z_axis.size`` and the
+        same spacing as ``Z_axis``.
+    """
+    if not isinstance(n, (int, np.integer)) or n < 1:
+        raise ValueError(f"n must be a positive integer; got {n!r}.")
+    field = np.asarray(field)
+    Z_axis = np.asarray(Z_axis)
+    if n == 1:
+        return field, Z_axis
+
+    field_expanded = np.concatenate([field] * n, axis=axis)
+
+    N = Z_axis.size
+    L = N * (Z_axis[1] - Z_axis[0])
+    Z_expanded = np.concatenate([Z_axis + i * L for i in range(n)])
+
+    return field_expanded, Z_expanded
