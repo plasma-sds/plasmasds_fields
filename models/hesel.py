@@ -102,7 +102,7 @@ class HESEL:
 
         Parameters
         ----------
-        field : {"density", "temperature"}
+        field : {"density", "electron_temperature", "ion_temperature"}
             Name of the dataset to read.
         r_range, z_range, t_range : None, scalar, or sequence of two floats, optional
             Selector for the R, Z and time axes respectively:
@@ -123,7 +123,7 @@ class HESEL:
             follows the dataset, i.e. ``(time, Z, R)`` before
             collapse.
         """
-        valid = ("density", "temperature")
+        valid = ("density", "electron_temperature", "ion_temperature")
         if field not in valid:
             raise ValueError(
                 f"field must be one of {valid}; got {field!r}."
