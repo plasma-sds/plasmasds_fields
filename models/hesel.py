@@ -212,3 +212,69 @@ def expand_hesel(field, Z_axis, n, axis=-2):
     Z_expanded = np.concatenate([Z_axis + i * L for i in range(n)])
 
     return field_expanded, Z_expanded
+
+
+def expand_sol(field, R_axis, n_sol, axis=-1, z_axis=-2):
+    """
+    Extend a HESEL field outward in the R direction with a flat SOL.
+
+    Appends ``n_sol`` new R samples beyond the current high-R end of
+    ``R_axis`` (uniformly spaced at ``dR = R_axis[1] - R_axis[0]``)
+    and fills the extension with a constant value per outer-dimension
+    frame. The fill value is the Z-average of the field taken at the
+    outermost R column (i.e. ``field[..., -1]`` after collapsing the
+    Z axis with the mean), so every new R sample at every Z position
+    inside a given frame gets the same scalar.
+
+    Parameters
+    ----------
+    field : array-like
+        The field to expand. Typical layouts are ``(time, Z, R)`` as
+        produced by :meth:`HESEL.extract_field`, or 2-D snapshots
+        ``(Z, R)`` when the time axis has been collapsed.
+    R_axis : array-like
+        1-D, uniformly spaced R coordinate axis matching the ``axis``
+        dimension of ``field``.
+    n_sol : int
+        Number of SOL samples to append on the high-R side. Must be
+        a positive integer.
+    axis : int, default -1
+        Axis of ``field`` corresponding to R. The default ``-1`` is
+        correct for both ``(time, Z, R)`` and ``(Z, R)`` arrays.
+    z_axis : int, default -2
+        Axis of ``field`` corresponding to Z (used to compute the
+        Z-average fill value).
+
+    Returns
+    -------
+    field_expanded : numpy.ndarray
+        The field with the SOL extension appended along ``axis``.
+        Same dtype as ``field`` and same shape except the length of
+        ``axis`` becomes ``R_axis.size + n_sol``.
+    R_expanded : numpy.ndarray
+        The extended R axis, of length ``R_axis.size + n_sol`` and
+        the same spacing as ``R_axis``.
+    """
+    if not isinstance(n_sol, (int, np.integer)) or n_sol < 1:
+        raise ValueError(f"n_sol must be a positive integer; got {n_sol!r}.")
+    field = np.asarray(field)
+    R_axis = np.asarray(R_axis)
+
+    last_R_slc = [slice(None)] * field.ndim
+    last_R_slc[axis] = slice(-1, None)
+    last_R_column = field[tuple(last_R_slc)]
+
+    fill_value = last_R_column.mean(axis=z_axis, keepdims=True)
+
+    ext_shape = list(field.shape)
+    ext_shape[axis] = n_sol
+    extension = np.broadcast_to(fill_value, ext_shape)
+
+    field_expanded = np.concatenate([field, extension], axis=axis)
+
+    dR = R_axis[1] - R_axis[0]
+    R_expanded = np.concatenate(
+        [R_axis, R_axis[-1] + dR * np.arange(1, n_sol + 1)]
+    )
+
+    return field_expanded, R_expanded
