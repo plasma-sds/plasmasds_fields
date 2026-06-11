@@ -48,24 +48,24 @@ def create_profile(x0=0, x1=0.2, y0=0, y1=0.3,
 
     Returns
     -------
-    x : numpy.ndarray, shape (Nx,)
+    X : numpy.ndarray, shape (Nx,)
         1D array of x-coordinates, ranging from 0 to X with spacing dx [m].
-    y : numpy.ndarray, shape (Ny,)
+    Y : numpy.ndarray, shape (Ny,)
         1D array of y-coordinates, ranging from 0 to Y with spacing dy [m].
-    density : numpy.ndarray, shape (Nx, Ny)
+    Z : numpy.ndarray, shape (Nx, Ny)
         2D array of plasma density values [m^-3]. The profile varies along x
         following:
             den_min + (den_max - den_min) / 2 * (1 + tanh(g * (x - x_LCF)))
         and is uniform (tiled) along y.
     """
     
-    x = np.arange(x0, x1, dx)
-    y = np.arange(y0, y1, dy)
+    X = np.arange(x0, x1, dx)
+    Y = np.arange(y0, y1, dy)
     
     # create the background denisty field
-    density = np.tile( den_min + (den_max - den_min) / 2 
-                        * ( 1 + np.tanh(g * (x - x_LCF)) ),
-                        (len(y), 1) ).transpose()
-    return x, y, density
+    Z = np.tile( den_min + (den_max - den_min) / 2 
+                 * ( 1 + np.tanh(g * (X - x_LCF)) ),
+                 (len(Y), 1) ).transpose()
+    return X, Y, Z
 
 
