@@ -1,71 +1,72 @@
 import numpy as np
 
 
-def create_profile(x0=0, x1=0.2, y0=0, y1=0.3,
-                   dx=0.0005, dy=0.0005,
-                   den_max=2e19, den_min=0.2e19,
-                   g=20, x_LCF=0.1):
+def create_2d_profile(R0=0, R1=0.2, Z0=0, Z1=0.3,
+                      dR=0.0005, dZ=0.0005,
+                      edge_value=2e19, SOL_value=0.2e19,
+                      g=20, R_LCFS=0.1):
     """
     Creates a 2D plasma density profile using a hyperbolic tangent (tanh) 
-    transition across the Last Closed Flux surface (LCF). The density is
-    uniform in Y and follows a tanh ramp in X, transitioning from 
-    den_min to den_max.
+    transition across the Last Closed Flux Surface (LCFS). The density is
+    uniform in Z and follows a tanh ramp in R, transitioning from 
+    edge_value to SOL_value.
 
     Parameters
     ----------
-    x0 : float, optional
-        Start point of the domain in the x-direction [m]. 
+    R0 : float, optional
+        Start point of the domain in the R-direction [m]. 
         The default is 0.
-    x0 : float, optional
-        Start point of the domain in the x-direction [m]. 
+    Z0 : float, optional
+        Start point of the domain in the Z-direction [m]. 
         The default is 0.
-    x1 : float, optional
-        End point of the domain in the x-direction [m]. 
+    R1 : float, optional
+        End point of the domain in the R-direction [m]. 
         The default is 0.2.
-    y1 : float, optional
-        End point of the domain in the y-direction [m]. 
+    Z1 : float, optional
+        End point of the domain in the Z-direction [m]. 
         The default is 0.3.
-    dx : float, optional
-        Spatial resolution (grid spacing) in the x-direction [m]. 
+    dR : float, optional
+        Spatial resolution (grid spacing) in the R-direction [m]. 
         The default is 0.0005.
-    dy : float, optional
-        Spatial resolution (grid spacing) in the y-direction [m]. 
+    dZ : float, optional
+        Spatial resolution (grid spacing) in the Z-direction [m]. 
         The default is 0.0005.
-    den_max : float, optional
+    edge_value : float, optional
         Maximum (core) plasma density [m^-3]. 
         The default is 2e19.
-    den_min : float, optional
+    SOL_value : float, optional
         Minimum (edge/SOL) plasma density [m^-3]. 
         The default is 0.2e19.
     g : float, optional
         Gradient steepness parameter controlling the sharpness of the tanh
-        transition at the LCF. Higher values produce a steeper density ramp.
+        transition at the LCFS. Higher values produce a steeper density ramp.
         The default is 20.
-    x_LCF : float, optional
-        Position of the Last Closed Flux surface in the x-direction [m],
+    R_LCF : float, optional
+        Position of the Last Closed Flux Surface in the R-direction [m],
         where the density transition is centred. 
         The default is 0.1.
 
     Returns
     -------
-    X : numpy.ndarray, shape (Nx,)
-        1D array of x-coordinates, ranging from 0 to X with spacing dx [m].
-    Y : numpy.ndarray, shape (Ny,)
-        1D array of y-coordinates, ranging from 0 to Y with spacing dy [m].
-    Z : numpy.ndarray, shape (Nx, Ny)
-        2D array of plasma density values [m^-3]. The profile varies along x
+    R : numpy.ndarray, shape (NR,)
+        1D array of R-coordinates, ranging from 0 to R with spacing dR [m].
+    Z : numpy.ndarray, shape (NZ,)
+        1D array of Z-coordinates, ranging from 0 to Z with spacing dZ [m].
+    field : numpy.ndarray, shape (NR, NZ)
+        2D array of plasma density values [m^-3]. The profile varies along R
         following:
-            den_min + (den_max - den_min) / 2 * (1 + tanh(g * (x - x_LCF)))
-        and is uniform (tiled) along y.
+            SOL_value + (edge_value - SOL_value) / 2 * 
+            (1 + tanh(g * (R - R_LCFS)))
+        and is uniform (tiled) along Z.
     """
     
-    X = np.arange(x0, x1, dx)
-    Y = np.arange(y0, y1, dy)
+    R = np.arange(R0, R1, dR)
+    Z = np.arange(Z0, Z1, dZ)
     
     # create the background denisty field
-    Z = np.tile( den_min + (den_max - den_min) / 2 
-                 * ( 1 + np.tanh(g * (X - x_LCF)) ),
-                 (len(Y), 1) ).transpose()
-    return X, Y, Z
+    field = np.tile( SOL_value + (edge_value - SOL_value) / 2 
+                 * ( 1 + np.tanh(g * (R - R_LCFS)) ),
+                 (len(Z), 1) ).transpose()
+    return R, Z, field
 
 
