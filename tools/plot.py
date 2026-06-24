@@ -180,15 +180,36 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
                   equal_aspect=True, figsize=None, dpi=100,
                   time_resolution='s'):
     """
-    Animate the time evolution of a 2-D ``(R, Z)`` field as a GIF.
+    Animate the time evolution of one or more 2-D ``(R, Z)`` fields
+    as a GIF.
 
-    Draws one filled-contour frame per time step on the ``(R, Z)``
-    plane and writes the result to ``save_path`` as an animated GIF
-    via matplotlib's :class:`~matplotlib.animation.PillowWriter`.
+    Renders one filled-contour frame per time step on the ``(R, Z)``
+    plane for each input field and writes the result to ``save_path``
+    as an animated GIF via matplotlib's
+    :class:`~matplotlib.animation.PillowWriter`.
 
-    Accepts inputs in either layout commonly produced in this
-    project, with auto-detection via the lengths of ``R``, ``Z`` and
-    ``t`` against ``field.shape``:
+    Up to four fields can be animated side-by-side in a single GIF.
+    All fields must share the same axes (R, Z, t) and therefore the
+    same shape; ``r_range`` / ``z_range`` / ``t_range`` cropping is
+    applied identically to every field. Each field gets its own
+    subplot, color scale and colorbar; the current time stamp is
+    drawn once as a figure-level suptitle.
+
+    The subplot layout is fixed by the number of fields ``N``:
+
+    * ``N == 1``: single ``1 x 1`` plot.
+    * ``N == 2``: ``1 x 2`` (one row, side by side).
+    * ``N == 3``: ``1 x 3`` (one row).
+    * ``N == 4``: ``2 x 2`` grid.
+
+    Single-field calls remain unchanged: pass ``field`` as a 3-D
+    array and ``field_name`` / ``cbar_label`` as plain strings. For
+    multi-field calls, pass each of ``field``, ``field_name`` and
+    ``cbar_label`` as a list/tuple of matching length (1-4).
+
+    Inputs are accepted in either layout produced in this project,
+    with auto-detection by matching the lengths of ``R``, ``Z`` and
+    ``t`` against the field's shape:
 
     * **HESEL** (``models.hesel.HESEL.extract_field``): field shape
       ``(time, Z, R)``, axes ``hesel.R_axis``, ``hesel.Z_axis``,
@@ -202,56 +223,63 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
     When the three axis sizes are ambiguous (e.g. ``nR == nZ``),
     pass ``axis_order`` explicitly.
 
-    Color levels and the normalization are computed *once* from the
-    global min / max of the cropped field, so the color mapping is
-    stable across frames (no flickering colorbar).
+    The per-field color levels and normalization are computed *once*
+    from the global min / max of that field over the cropped volume,
+    so each subplot keeps a stable color mapping across frames.
 
     Parameters
     ----------
     R, Z, t : array_like
         1-D coordinate axes for the radial, vertical, and temporal
-        dimensions.
-    field : array_like
-        3-D scalar field whose axes are some permutation of
-        ``(R, Z, t)``.
+        dimensions, shared across all fields.
+    field : array_like or sequence of array_like
+        Either a single 3-D field, or a list/tuple of up to 4 3-D
+        fields with identical shapes. Each field's axes are some
+        permutation of ``(R, Z, t)``.
     field_name : str
-        Name of the field (e.g. ``"density"`` or
-        ``"electron_temperature"``). Used in the frame title.
-    cbar_label : str
-        Label for the colorbar (e.g. ``"n [m^-3]"`` or
-        ``"T_e [eV]"``).
+        Title of the GIF. Drawn once as a figure-level suptitle
+        centered at the top of the animation, regardless of the
+        number of fields. Each subplot is identified by its own
+        ``cbar_label``.
+    cbar_label : str or sequence of str
+        Label for each field's colorbar (e.g. ``"n [m^-3]"``,
+        ``"T_e [eV]"``). Must have the same length as ``field``.
     save_path : str or path-like
         Output path for the animated GIF (e.g. ``"density.gif"``).
+        A ``.gif`` extension is appended automatically if missing.
     r_range, z_range, t_range : sequence of float, optional
-        Two-element ``[min, max]`` crops applied to R, Z and t
-        before animating.
+        Two-element ``[min, max]`` crops applied to R, Z and t (and
+        therefore to every field) before animating.
     fps : int, default 10
         Frames per second for the output GIF.
     cmap : str or Colormap, optional
-        Colormap forwarded to matplotlib.
+        Colormap forwarded to matplotlib (shared across all
+        subplots).
     log : bool, default False
         If ``True``, use a logarithmic color normalization
-        (:class:`~matplotlib.colors.LogNorm`). Non-positive entries
-        in each frame are clipped to the global positive minimum so
-        ``LogNorm`` does not choke.
+        (:class:`~matplotlib.colors.LogNorm`) for every field. Non-
+        positive entries are clipped per field to that field's
+        positive minimum so ``LogNorm`` does not choke.
     levels : int or array_like, default 30
         Number of contour levels, or explicit level values. When an
         int is given the levels are spaced linearly (or
-        logarithmically when ``log=True``) over the *global*
-        ``vmin`` / ``vmax`` of the cropped field.
+        logarithmically when ``log=True``) over each field's own
+        ``vmin`` / ``vmax``.
     axis_order : sequence of {"R", "Z", "t"}, optional
-        Explicit labelling of the 3 axes of ``field``, e.g.
+        Explicit labelling of the 3 axes of the fields, e.g.
         ``("t", "Z", "R")`` for HESEL or ``("t", "R", "Z")`` for
         motion. If ``None``, sizes are matched automatically.
     equal_aspect : bool, default True
-        If ``True``, force equal R/Z visual scale on the axes.
+        If ``True``, force equal R/Z visual scale on every subplot.
     figsize : tuple of float, optional
-        Forwarded to :func:`matplotlib.pyplot.subplots`.
+        Forwarded to :func:`matplotlib.pyplot.subplots`. Defaults
+        to ``(6 * ncols, 4.5 * nrows)``, sized to the number of
+        subplots.
     dpi : int, default 100
         Resolution of the saved GIF.
     time_resolution : {"s", "ms", "us"}, default "s"
-        Unit used to display the time stamp in each frame's title.
-        The time values are multiplied by ``1``, ``1e3`` or ``1e6``
+        Unit used to display the time stamp in the suptitle. The
+        time values are multiplied by ``1``, ``1e3`` or ``1e6``
         respectively and formatted with two decimal places.
 
     Returns
@@ -272,26 +300,49 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
         )
     time_scale = time_scales[time_resolution]
 
+    def _as_list(x):
+        return list(x) if isinstance(x, (list, tuple)) else [x]
+
+    fields = [np.asarray(f) for f in _as_list(field)]
+    cbar_labels = _as_list(cbar_label)
+
+    n_fields = len(fields)
+    if not (1 <= n_fields <= 4):
+        raise ValueError(
+            f"number of fields must be between 1 and 4; got {n_fields}."
+        )
+    if len(cbar_labels) != n_fields:
+        raise ValueError(
+            "field and cbar_label must have matching lengths; "
+            f"got {n_fields} fields and {len(cbar_labels)} cbar_label(s)."
+        )
+
     R = np.asarray(R)
     Z = np.asarray(Z)
     t = np.asarray(t)
-    field = np.asarray(field)
 
     if R.ndim != 1 or Z.ndim != 1 or t.ndim != 1:
         raise ValueError(
             f"R, Z, t must be 1-D; got shapes R{R.shape}, Z{Z.shape}, t{t.shape}."
         )
-    if field.ndim != 3:
-        raise ValueError(f"field must be 3-D; got shape {field.shape}.")
+    for i, f in enumerate(fields):
+        if f.ndim != 3:
+            raise ValueError(f"field[{i}] must be 3-D; got shape {f.shape}.")
+        if f.shape != fields[0].shape:
+            raise ValueError(
+                "all fields must share the same shape; "
+                f"field[0].shape={fields[0].shape} but "
+                f"field[{i}].shape={f.shape}."
+            )
 
     if axis_order is None:
         sizes = {"R": R.size, "Z": Z.size, "t": t.size}
         order = []
-        for ax_size in field.shape:
+        for ax_size in fields[0].shape:
             matches = [n for n, s in sizes.items() if s == ax_size]
             if len(matches) != 1:
                 raise ValueError(
-                    f"Cannot auto-detect axis layout: field.shape={field.shape} "
+                    f"Cannot auto-detect axis layout: field.shape={fields[0].shape} "
                     f"is ambiguous against sizes R={R.size}, Z={Z.size}, "
                     f"t={t.size}. Pass `axis_order` explicitly, e.g. "
                     "axis_order=('t','Z','R')."
@@ -305,24 +356,27 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
                 f"got {order}."
             )
         expected = tuple({"R": R.size, "Z": Z.size, "t": t.size}[n] for n in order)
-        if expected != field.shape:
+        if expected != fields[0].shape:
             raise ValueError(
                 f"axis_order={tuple(order)} implies field.shape={expected}, "
-                f"but got {field.shape}."
+                f"but got {fields[0].shape}."
             )
 
     perm = [order.index(axname) for axname in ("t", "Z", "R")]
-    field = np.transpose(field, perm)
+    fields = [np.transpose(f, perm) for f in fields]
 
     if r_range is not None:
         rm = (R >= r_range[0]) & (R <= r_range[1])
-        R, field = R[rm], field[:, :, rm]
+        R = R[rm]
+        fields = [f[:, :, rm] for f in fields]
     if z_range is not None:
         zm = (Z >= z_range[0]) & (Z <= z_range[1])
-        Z, field = Z[zm], field[:, zm, :]
+        Z = Z[zm]
+        fields = [f[:, zm, :] for f in fields]
     if t_range is not None:
         tm = (t >= t_range[0]) & (t <= t_range[1])
-        t, field = t[tm], field[tm, :, :]
+        t = t[tm]
+        fields = [f[tm, :, :] for f in fields]
 
     if R.size < 2 or Z.size < 2 or t.size < 1:
         raise ValueError(
@@ -330,51 +384,74 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
             f"R={R.size}, Z={Z.size}, t={t.size}."
         )
 
-    if log:
-        positive = field[field > 0]
-        if positive.size == 0:
-            raise ValueError("log=True but field has no positive values.")
-        vmin = float(positive.min())
-        vmax = float(field.max())
-        norm = LogNorm(vmin=vmin, vmax=vmax)
-        if isinstance(levels, (int, np.integer)):
-            levels = np.logspace(np.log10(vmin), np.log10(vmax), int(levels))
-    else:
-        vmin = float(field.min())
-        vmax = float(field.max())
-        norm = Normalize(vmin=vmin, vmax=vmax)
-        if isinstance(levels, (int, np.integer)):
-            levels = np.linspace(vmin, vmax, int(levels))
+    norms = []
+    levels_list = []
+    for i, f in enumerate(fields):
+        if log:
+            positive = f[f > 0]
+            if positive.size == 0:
+                raise ValueError(
+                    f"log=True but field[{i}] has no positive values."
+                )
+            vmin = float(positive.min())
+            vmax = float(f.max())
+            norm = LogNorm(vmin=vmin, vmax=vmax)
+            if isinstance(levels, (int, np.integer)):
+                lvls = np.logspace(np.log10(vmin), np.log10(vmax), int(levels))
+            else:
+                lvls = np.asarray(levels)
+        else:
+            vmin = float(f.min())
+            vmax = float(f.max())
+            norm = Normalize(vmin=vmin, vmax=vmax)
+            if isinstance(levels, (int, np.integer)):
+                lvls = np.linspace(vmin, vmax, int(levels))
+            else:
+                lvls = np.asarray(levels)
+        norms.append(norm)
+        levels_list.append(lvls)
 
-    fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    layout = {1: (1, 1), 2: (1, 2), 3: (1, 3), 4: (2, 2)}
+    nrows, ncols = layout[n_fields]
+    if figsize is None:
+        figsize = (6.0 * ncols, 4.5 * nrows)
 
-    sm = cm.ScalarMappable(norm=norm, cmap=cmap)
-    sm.set_array([])
-    cbar = fig.colorbar(sm, ax=ax)
-    cbar.set_label(cbar_label, fontweight="bold")
-    for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
-        tick_label.set_fontweight("bold")
-    cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
-    cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
+    fig, axes = plt.subplots(
+        nrows, ncols, figsize=figsize, dpi=dpi, constrained_layout=True
+    )
+    axes_list = [axes] if n_fields == 1 else np.asarray(axes).flatten().tolist()
+
+    for ax, label, norm in zip(axes_list, cbar_labels, norms):
+        sm = cm.ScalarMappable(norm=norm, cmap=cmap)
+        sm.set_array([])
+        cbar = fig.colorbar(sm, ax=ax)
+        cbar.set_label(label, fontweight="bold")
+        for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
+            tick_label.set_fontweight("bold")
+        cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
+        cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
 
     def update(frame):
-        ax.clear()
-        frame_data = field[frame]
-        if log:
-            frame_data = np.where(frame_data > 0, frame_data, vmin)
-        ax.contourf(R, Z, frame_data, levels=levels, cmap=cmap, norm=norm)
-        ax.set_xlabel("R [m]", fontweight="bold")
-        ax.set_ylabel("Z [m]", fontweight="bold")
-        if equal_aspect:
-            ax.set_aspect("equal")
-        ax.set_title(
-            f"{field_name} at t = {t[frame] * time_scale:.2f} {time_resolution}",
+        for ax, f_data, norm, lvls in zip(
+            axes_list, fields, norms, levels_list
+        ):
+            ax.clear()
+            frame_data = f_data[frame]
+            if log:
+                frame_data = np.where(frame_data > 0, frame_data, norm.vmin)
+            ax.contourf(R, Z, frame_data, levels=lvls, cmap=cmap, norm=norm)
+            ax.set_xlabel("R [m]", fontweight="bold")
+            ax.set_ylabel("Z [m]", fontweight="bold")
+            if equal_aspect:
+                ax.set_aspect("equal")
+            for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
+                tick_label.set_fontweight("bold")
+            ax.xaxis.get_offset_text().set_fontweight("bold")
+            ax.yaxis.get_offset_text().set_fontweight("bold")
+        fig.suptitle(
+            f"{field_name}\nt = {t[frame] * time_scale:.2f} {time_resolution}",
             fontweight="bold",
         )
-        for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
-            tick_label.set_fontweight("bold")
-        ax.xaxis.get_offset_text().set_fontweight("bold")
-        ax.yaxis.get_offset_text().set_fontweight("bold")
 
     anim = FuncAnimation(
         fig, update, frames=t.size, interval=1000.0 / fps, blit=False
