@@ -174,7 +174,8 @@ def animate_field(R, Z, t, field, field_name, save_path,
                   r_range=None, z_range=None, t_range=None,
                   fps=10, cmap=None, log=False, levels=30,
                   cbar_label=None, axis_order=None,
-                  equal_aspect=True, figsize=None, dpi=100):
+                  equal_aspect=True, figsize=None, dpi=100,
+                  time_resolution='s'):
     """
     Animate the time evolution of a 2-D ``(R, Z)`` field as a GIF.
 
@@ -245,6 +246,10 @@ def animate_field(R, Z, t, field, field_name, save_path,
         Forwarded to :func:`matplotlib.pyplot.subplots`.
     dpi : int, default 100
         Resolution of the saved GIF.
+    time_resolution : {"s", "ms", "us"}, default "s"
+        Unit used to display the time stamp in each frame's title.
+        The time values are multiplied by ``1``, ``1e3`` or ``1e6``
+        respectively and formatted with two decimal places.
 
     Returns
     -------
@@ -258,6 +263,14 @@ def animate_field(R, Z, t, field, field_name, save_path,
     save_path = Path(save_path)
     if save_path.suffix.lower() != ".gif":
         save_path = save_path.with_suffix(".gif")
+
+    time_scales = {"s": 1.0, "ms": 1e3, "us": 1e6}
+    if time_resolution not in time_scales:
+        raise ValueError(
+            f"time_resolution must be one of {list(time_scales)}; "
+            f"got {time_resolution!r}."
+        )
+    time_scale = time_scales[time_resolution]
 
     R = np.asarray(R)
     Z = np.asarray(Z)
@@ -355,7 +368,8 @@ def animate_field(R, Z, t, field, field_name, save_path,
         if equal_aspect:
             ax.set_aspect("equal")
         ax.set_title(
-            f"{field_name} at t = {t[frame]:.3e} s", fontweight="bold"
+            f"{field_name} at t = {t[frame] * time_scale:.2f} {time_resolution}",
+            fontweight="bold",
         )
         for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
             tick_label.set_fontweight("bold")
