@@ -457,8 +457,23 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
         fig, update, frames=t.size, interval=1000.0 / fps, blit=False
     )
 
+    last_pct = -1
+    def _progress(current, total):
+        nonlocal last_pct
+        pct = int((current + 1) / total * 100)
+        if pct != last_pct:
+            last_pct = pct
+            bar_len = 20
+            filled = int(bar_len * pct / 100)
+            bar = "#" * filled + "." * (bar_len - filled)
+            end_char = "\n" if pct == 100 else ""
+            print(
+                f"\rRendering: [{bar}] {pct:3d}% ({current + 1}/{total})",
+                end=end_char, flush=True,
+            )
+
     writer = PillowWriter(fps=fps)
-    anim.save(save_path, writer=writer, dpi=dpi)
+    anim.save(save_path, writer=writer, dpi=dpi, progress_callback=_progress)
     plt.close(fig)
 
     return anim
