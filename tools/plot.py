@@ -253,6 +253,11 @@ def animate_field(R, Z, t, field, field_name, save_path,
     """
     from matplotlib.animation import FuncAnimation, PillowWriter
     from matplotlib import cm
+    from pathlib import Path
+
+    save_path = Path(save_path)
+    if save_path.suffix.lower() != ".gif":
+        save_path = save_path.with_suffix(".gif")
 
     R = np.asarray(R)
     Z = np.asarray(Z)
