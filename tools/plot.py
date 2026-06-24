@@ -173,7 +173,7 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     return cs
 
 
-def animate_field(R, Z, t, field, field_name, value_name, metrics, save_path,
+def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
                   r_range=None, z_range=None, t_range=None,
                   fps=10, cmap=None, log=False, levels=30,
                   axis_order=None,
@@ -217,15 +217,9 @@ def animate_field(R, Z, t, field, field_name, value_name, metrics, save_path,
     field_name : str
         Name of the field (e.g. ``"density"`` or
         ``"electron_temperature"``). Used in the frame title.
-    value_name : str
-        Symbolic / readable name of the plotted quantity (e.g.
-        ``"n"``, ``"T_e"``, ``"density"``). Displayed on the
-        colorbar.
-    metrics : str
-        Units of the plotted quantity (e.g. ``"m^-3"``, ``"eV"``).
-        Displayed in brackets on the colorbar after ``value_name``,
-        i.e. ``"{value_name} [{metrics}]"``. Pass an empty string
-        for a dimensionless field to drop the brackets.
+    cbar_label : str
+        Label for the colorbar (e.g. ``"n [m^-3]"`` or
+        ``"T_e [eV]"``).
     save_path : str or path-like
         Output path for the animated GIF (e.g. ``"density.gif"``).
     r_range, z_range, t_range : sequence of float, optional
@@ -357,8 +351,7 @@ def animate_field(R, Z, t, field, field_name, value_name, metrics, save_path,
     sm = cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax)
-    cbar_text = f"{value_name} [{metrics}]" if metrics else value_name
-    cbar.set_label(cbar_text, fontweight="bold")
+    cbar.set_label(cbar_label, fontweight="bold")
     for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
         tick_label.set_fontweight("bold")
     cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
