@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib import cm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from pathlib import Path
 
 
@@ -416,20 +417,27 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
     if figsize is None:
         figsize = (6.0 * ncols, 4.5 * nrows)
 
-    fig, axes = plt.subplots(
-        nrows, ncols, figsize=figsize, dpi=dpi, constrained_layout=True
-    )
+    fig, axes = plt.subplots(nrows, ncols, figsize=figsize, dpi=dpi)
     axes_list = [axes] if n_fields == 1 else np.asarray(axes).flatten().tolist()
 
     for ax, label, norm in zip(axes_list, cbar_labels, norms):
         sm = cm.ScalarMappable(norm=norm, cmap=cmap)
         sm.set_array([])
-        cbar = fig.colorbar(sm, ax=ax)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cbar = fig.colorbar(sm, cax=cax)
         cbar.set_label(label, fontweight="bold")
         for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
             tick_label.set_fontweight("bold")
         cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
         cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
+
+    for ax in axes_list:
+        ax.set_xlabel("R [m]", fontweight="bold")
+        ax.set_ylabel("Z [m]", fontweight="bold")
+    fig.suptitle(f"{field_name}\nt = ", fontweight="bold")
+
+    fig.tight_layout(rect=[0, 0, 1, 0.92])
 
     def update(frame):
         for ax, f_data, norm, lvls in zip(
