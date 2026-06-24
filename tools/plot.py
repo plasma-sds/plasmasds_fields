@@ -1,6 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize
+from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib import cm
+from pathlib import Path
 
 
 def contour_field(R, Z, field, r_range=None, z_range=None, levels=None, filled=True,
@@ -170,10 +173,10 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     return cs
 
 
-def animate_field(R, Z, t, field, field_name, save_path,
+def animate_field(R, Z, t, field, field_name, value_name, metrics, save_path,
                   r_range=None, z_range=None, t_range=None,
                   fps=10, cmap=None, log=False, levels=30,
-                  cbar_label=None, axis_order=None,
+                  axis_order=None,
                   equal_aspect=True, figsize=None, dpi=100,
                   time_resolution='s'):
     """
@@ -213,8 +216,16 @@ def animate_field(R, Z, t, field, field_name, save_path,
         ``(R, Z, t)``.
     field_name : str
         Name of the field (e.g. ``"density"`` or
-        ``"electron_temperature"``). Used in the frame title and as
-        the default colorbar label.
+        ``"electron_temperature"``). Used in the frame title.
+    value_name : str
+        Symbolic / readable name of the plotted quantity (e.g.
+        ``"n"``, ``"T_e"``, ``"density"``). Displayed on the
+        colorbar.
+    metrics : str
+        Units of the plotted quantity (e.g. ``"m^-3"``, ``"eV"``).
+        Displayed in brackets on the colorbar after ``value_name``,
+        i.e. ``"{value_name} [{metrics}]"``. Pass an empty string
+        for a dimensionless field to drop the brackets.
     save_path : str or path-like
         Output path for the animated GIF (e.g. ``"density.gif"``).
     r_range, z_range, t_range : sequence of float, optional
@@ -234,8 +245,6 @@ def animate_field(R, Z, t, field, field_name, save_path,
         int is given the levels are spaced linearly (or
         logarithmically when ``log=True``) over the *global*
         ``vmin`` / ``vmax`` of the cropped field.
-    cbar_label : str, optional
-        Colorbar label. Defaults to ``field_name`` when ``None``.
     axis_order : sequence of {"R", "Z", "t"}, optional
         Explicit labelling of the 3 axes of ``field``, e.g.
         ``("t", "Z", "R")`` for HESEL or ``("t", "R", "Z")`` for
@@ -256,9 +265,6 @@ def animate_field(R, Z, t, field, field_name, save_path,
     matplotlib.animation.FuncAnimation
         The constructed animation (already saved to ``save_path``).
     """
-    from matplotlib.animation import FuncAnimation, PillowWriter
-    from matplotlib import cm
-    from pathlib import Path
 
     save_path = Path(save_path)
     if save_path.suffix.lower() != ".gif":
@@ -351,7 +357,8 @@ def animate_field(R, Z, t, field, field_name, save_path,
     sm = cm.ScalarMappable(norm=norm, cmap=cmap)
     sm.set_array([])
     cbar = fig.colorbar(sm, ax=ax)
-    cbar.set_label(cbar_label or field_name, fontweight="bold")
+    cbar_text = f"{value_name} [{metrics}]" if metrics else value_name
+    cbar.set_label(cbar_text, fontweight="bold")
     for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
         tick_label.set_fontweight("bold")
     cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
