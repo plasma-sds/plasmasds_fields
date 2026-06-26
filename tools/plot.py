@@ -180,7 +180,8 @@ def contour_slice(R, Z, t, field, field_name,
                   cbar_label="", levels=30, cmap=None, log=False,
                   axis_order=None, equal_aspect=None,
                   contour_lines=False, ax=None, save_image=None,
-                  time_resolution='s', figsize=None, dpi=100):
+                  time_resolution='s', figsize=None, dpi=100,
+                  plot_3d=False):
     """
     Plot a 2-D contour slice of a 3-D ``(R, Z, t)`` field.
 
@@ -259,11 +260,22 @@ def contour_slice(R, Z, t, field, field_name,
         Forwarded to :func:`matplotlib.pyplot.subplots`.
     dpi : int, default 100
         Figure DPI.
+    plot_3d : bool, default False
+        If ``True``, render the slice as a 3-D surface
+        (:meth:`matplotlib.mplot3d.Axes3D.plot_surface`) where the
+        vertical axis carries the field values, rather than as a
+        2-D filled contour. ``equal_aspect`` is ignored in this
+        mode, and ``contour_lines=True`` overlays 3-D contour lines
+        on top of the surface.
 
     Returns
     -------
-    matplotlib.contour.QuadContourSet
-        The contour set drawn (useful for further customization).
+    matplotlib.artist.Artist
+        The plotted artist:
+        :class:`matplotlib.contour.QuadContourSet` for
+        ``plot_3d=False`` or
+        :class:`mpl_toolkits.mplot3d.art3d.Poly3DCollection` for
+        ``plot_3d=True``.
     """
 
     selectors = [("t", at_t), ("R", at_r), ("Z", at_z)]
@@ -381,20 +393,54 @@ def contour_slice(R, Z, t, field, field_name,
             levels = np.linspace(vmin, vmax, int(levels))
 
     created_fig = ax is None
-    if created_fig:
-        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    if plot_3d:
+        if created_fig:
+            fig = plt.figure(figsize=figsize, dpi=dpi)
+            ax = fig.add_subplot(111, projection="3d")
+        else:
+            fig = ax.figure
+            if not hasattr(ax, "plot_surface"):
+                raise ValueError(
+                    "plot_3d=True requires a 3-D axes; create with "
+                    "fig.add_subplot(projection='3d') and pass it as ax."
+                )
+
+        X_mesh, Y_mesh = np.meshgrid(x_axis, y_axis)
+        cmap_used = cmap if cmap is not None else "viridis"
+        artist = ax.plot_surface(
+            X_mesh, Y_mesh, slice_2d,
+            cmap=cmap_used, norm=norm,
+            linewidth=0, antialiased=True,
+            shade=False,
+        )
+        if contour_lines:
+            ax.contour(X_mesh, Y_mesh, slice_2d, levels=levels,
+                       colors="black", linewidths=0.5)
+
+        cbar = fig.colorbar(artist, ax=ax, shrink=0.6, pad=0.1)
+
+        ax.set_zlabel(cbar_label or field_name, fontweight="bold", rotation=90)
+        for tick_label in ax.get_zticklabels():
+            tick_label.set_fontweight("bold")
+        ax.zaxis.get_offset_text().set_fontweight("bold")
     else:
-        fig = ax.figure
+        if created_fig:
+            fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+        else:
+            fig = ax.figure
 
-    cs = ax.contourf(x_axis, y_axis, slice_2d,
-                     levels=levels, cmap=cmap, norm=norm)
-    if contour_lines:
-        ax.contour(x_axis, y_axis, slice_2d, levels=cs.levels,
-                   colors="black", linewidths=0.5)
+        artist = ax.contourf(x_axis, y_axis, slice_2d,
+                             levels=levels, cmap=cmap, norm=norm)
+        if contour_lines:
+            ax.contour(x_axis, y_axis, slice_2d, levels=artist.levels,
+                       colors="black", linewidths=0.5)
 
-    divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.1)
-    cbar = fig.colorbar(cs, cax=cax)
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cbar = fig.colorbar(artist, cax=cax)
+        if equal_aspect:
+            ax.set_aspect("equal")
+
     if cbar_label:
         cbar.set_label(cbar_label, fontweight="bold")
     for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
@@ -404,20 +450,21 @@ def contour_slice(R, Z, t, field, field_name,
 
     ax.set_xlabel(xlabel, fontweight="bold")
     ax.set_ylabel(ylabel, fontweight="bold")
-    if equal_aspect:
-        ax.set_aspect("equal")
     ax.set_title(title, fontweight="bold")
     for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
         tick_label.set_fontweight("bold")
     ax.xaxis.get_offset_text().set_fontweight("bold")
     ax.yaxis.get_offset_text().set_fontweight("bold")
 
+    if slice_axis_name == "Z" and plot_3d:
+        ax.invert_yaxis()
+
     if save_image is not None:
         fig.savefig(save_image, bbox_inches="tight")
     if created_fig:
         plt.show()
 
-    return cs
+    return artist
 
 
 def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
