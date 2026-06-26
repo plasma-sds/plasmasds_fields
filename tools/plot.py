@@ -364,7 +364,7 @@ def contour_slice(R, Z, t, field, field_name,
         idx = int(np.argmin(np.abs(R - slice_value)))
         slice_2d = field[:, :, idx].T
         x_axis, y_axis = t * time_scale, Z
-        xlabel, ylabel = f"t [{time_resolution}]", "Z [m]"
+        xlabel, ylabel = f"Time [{time_resolution}]", "Z [m]"
         title = f"{field_name} at R = {R[idx]:.3f} m"
         if equal_aspect is None:
             equal_aspect = False
@@ -372,7 +372,7 @@ def contour_slice(R, Z, t, field, field_name,
         idx = int(np.argmin(np.abs(Z - slice_value)))
         slice_2d = field[:, idx, :].T
         x_axis, y_axis = t * time_scale, R
-        xlabel, ylabel = f"t [{time_resolution}]", "R [m]"
+        xlabel, ylabel = f"Time [{time_resolution}]", "R [m]"
         title = f"{field_name} at Z = {Z[idx]:.3f} m"
         if equal_aspect is None:
             equal_aspect = False
