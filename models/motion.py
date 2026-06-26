@@ -36,14 +36,24 @@ def perturbation_on_field(R, Z, field,
         Y-position [m] of each filament at every time step.
         z_trajectory[i][t_i] gives the y-coordinate of filament i at
         time index t_i. None values are silently skipped.
-    perturbation_fwhm : list of array-like, length n_filaments
-        Full Width at Half Maximum [m] of each filament at every time
-        step. Used to derive the Gaussian sigma
-        (sigma = FWHM / 2.535) and the ±3-sigma evaluation window
-        (half-width = FWHM / 2.535 * 3).
-    perturbation_ampl : list of array-like, length n_filaments
-        Peak amplitude [m^-3] of each filament's Gaussian density
-        perturbation at every time step.
+    perturbation_fwhm : float or list of array-like, length n_filaments
+        Full Width at Half Maximum [m] of the filament Gaussian. Used
+        to derive the sigma (sigma = FWHM / 2.535) and the ±3-sigma
+        evaluation window (half-width = FWHM / 2.535 * 3).
+
+        - If a scalar (``float`` / ``int``), the same FWHM is applied
+          to every filament at every time step.
+        - If a list of array-like, indexing follows ``r_trajectory``:
+          ``perturbation_fwhm[f_i][t_i]`` is the FWHM of filament
+          ``f_i`` at time ``t_i``.
+    perturbation_ampl : float or list of array-like, length n_filaments
+        Peak amplitude [m^-3] of the filament Gaussian.
+
+        - If a scalar, the same amplitude is applied to every
+          filament at every time step.
+        - If a list of array-like, indexing follows ``r_trajectory``:
+          ``perturbation_ampl[f_i][t_i]`` is the amplitude of
+          filament ``f_i`` at time ``t_i``.
     file : str or path-like, optional
         If provided, results are written to an HDF5 file at this path.
         The file contains datasets 'R', 'Z', 't', and one dataset per
@@ -85,7 +95,11 @@ def perturbation_on_field(R, Z, field,
     def gaussian_2d(R, Z, r0=0, z0=0, sigma_r=1, sigma_z=1, A=1):
         return A * np.exp(-(((R - r0) ** 2) / (2 * sigma_r ** 2)
                             + ((Z - z0) ** 2) / (2 * sigma_z ** 2)))
-    n_f = len(perturbation_fwhm)
+
+    _scalar_types = (int, float, np.integer, np.floating)
+    fwhm_is_scalar = isinstance(perturbation_fwhm, _scalar_types)
+    ampl_is_scalar = isinstance(perturbation_ampl, _scalar_types)
+    n_f = len(r_trajectory)
     
     # iterate through all the frames and the filaments
     for t_i in range(len(t)):
@@ -93,9 +107,12 @@ def perturbation_on_field(R, Z, field,
         for f_i in range(n_f):
             try: # if nonetype in datafield -> it will be passed
                 posR, posZ = r_trajectory[f_i][t_i], z_trajectory[f_i][t_i]
-                effR = effZ = perturbation_fwhm[f_i][t_i]/ 2.535*3
-                sigR = sigZ = perturbation_fwhm[f_i][t_i] / 2.535
-                ampl = perturbation_ampl[f_i][t_i]
+                fwhm_val = (perturbation_fwhm if fwhm_is_scalar
+                            else perturbation_fwhm[f_i][t_i])
+                ampl = (perturbation_ampl if ampl_is_scalar
+                        else perturbation_ampl[f_i][t_i])
+                effR = effZ = fwhm_val / 2.535 * 3
+                sigR = sigZ = fwhm_val / 2.535
                 # create the distribution in the 6 sigma range
                 G_ind_r = np.where((R >= posR - effR) &
                                    (R <= posR + effR))[0]
