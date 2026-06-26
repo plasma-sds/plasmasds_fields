@@ -219,7 +219,9 @@ def contour_slice(R, Z, t, field, field_name,
         ``at_r`` and ``at_z`` are in meters.
     r_range, z_range, t_range : sequence of float, optional
         Two-element ``[min, max]`` crops applied to R, Z and t
-        before slicing.
+        before slicing. ``r_range`` and ``z_range`` are in meters;
+        ``t_range`` is interpreted in the units selected by
+        ``time_resolution``.
     cbar_label : str, optional
         Label for the colorbar (e.g. ``"n [m^-3]"`` or
         ``"T_e [eV]"``).
@@ -330,7 +332,7 @@ def contour_slice(R, Z, t, field, field_name,
         zm = (Z >= z_range[0]) & (Z <= z_range[1])
         Z, field = Z[zm], field[:, zm, :]
     if t_range is not None:
-        tm = (t >= t_range[0]) & (t <= t_range[1])
+        tm = (t >= t_range[0] / time_scale) & (t <= t_range[1] / time_scale)
         t, field = t[tm], field[tm, :, :]
 
     if slice_axis_name == "t":
@@ -494,7 +496,9 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
         A ``.gif`` extension is appended automatically if missing.
     r_range, z_range, t_range : sequence of float, optional
         Two-element ``[min, max]`` crops applied to R, Z and t (and
-        therefore to every field) before animating.
+        therefore to every field) before animating. ``r_range`` and
+        ``z_range`` are in meters; ``t_range`` is interpreted in
+        the units selected by ``time_resolution``.
     fps : int, default 10
         Frames per second for the output GIF.
     cmap : str or Colormap, optional
@@ -619,7 +623,7 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
         Z = Z[zm]
         fields = [f[:, zm, :] for f in fields]
     if t_range is not None:
-        tm = (t >= t_range[0]) & (t <= t_range[1])
+        tm = (t >= t_range[0] / time_scale) & (t <= t_range[1] / time_scale)
         t = t[tm]
         fields = [f[tm, :, :] for f in fields]
 
