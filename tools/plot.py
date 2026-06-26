@@ -175,7 +175,7 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     return cs
 
 
-def contour_slice(R, Z, t, field, field_name,
+def slice_field(R, Z, t, field, field_name,
                   at_t=None, at_r=None, at_z=None,
                   r_range=None, z_range=None, t_range=None,
                   cbar_label="", levels=30, cmap=None, log=False,
