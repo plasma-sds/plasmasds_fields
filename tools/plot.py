@@ -19,9 +19,13 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     (as produced by :func:`w7x.fields.extract_points`):
 
     * **Regular**: ``R`` and ``Z`` are 1-D coordinate axes of length
-      ``nR`` and ``nZ`` respectively, ``field`` is 2-D with shape
-      ``(nZ, nR)``. Plotted with :meth:`~matplotlib.axes.Axes.contourf`
-      / :meth:`~matplotlib.axes.Axes.contour`.
+      ``nR`` and ``nZ`` respectively, ``field`` is 2-D with either
+      ``(nZ, nR)`` or ``(nR, nZ)`` shape; the axis ordering is
+      auto-detected by matching ``field.shape`` against ``R.size`` and
+      ``Z.size`` and the field is transposed if needed so R is always
+      plotted on the x-axis and Z on the y-axis. Plotted with
+      :meth:`~matplotlib.axes.Axes.contourf` /
+      :meth:`~matplotlib.axes.Axes.contour`.
     * **Scattered**: ``R``, ``Z``, ``field`` are 1-D arrays of equal
       length ``N``. Plotted with
       :meth:`~matplotlib.axes.Axes.tricontourf` /
@@ -91,11 +95,20 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     is_regular = field.ndim == 2
 
     if is_regular:
-        if R.ndim != 1 or Z.ndim != 1 or field.shape != (Z.size, R.size):
+        if R.ndim != 1 or Z.ndim != 1:
             raise ValueError(
-                "For a regular grid, R and Z must be 1-D and field must "
-                f"have shape (Z.size, R.size); got R{R.shape}, Z{Z.shape}, "
-                f"field{field.shape}."
+                "For a regular grid, R and Z must be 1-D; "
+                f"got R{R.shape}, Z{Z.shape}."
+            )
+        if field.shape == (Z.size, R.size):
+            pass
+        elif field.shape == (R.size, Z.size) and R.size != Z.size:
+            field = field.T
+        else:
+            raise ValueError(
+                f"field shape {field.shape} does not match R{R.shape} / "
+                f"Z{Z.shape}. Expected ({Z.size}, {R.size}) or "
+                f"({R.size}, {Z.size})."
             )
         if r_range is not None:
             r_mask = (R >= r_range[0]) & (R <= r_range[1])
@@ -735,9 +748,10 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
     for ax in axes_list:
         ax.set_xlabel("R [m]", fontweight="bold", fontsize=label_fs)
         ax.set_ylabel("Z [m]", fontweight="bold", fontsize=label_fs)
-    fig.suptitle(f"{field_name}\nt = ", fontweight="bold")
+        ax.set_anchor("N")
+    fig.suptitle(f"{field_name}\nt = ", fontweight="bold", y=0.99)
 
-    fig.tight_layout(rect=[0, 0, 1, 0.92])
+    fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     def update(frame):
         for ax, f_data, norm, lvls in zip(
@@ -759,6 +773,7 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
         fig.suptitle(
             f"{field_name}\nt = {t[frame] * time_scale:.2f} {time_resolution}",
             fontweight="bold",
+            y=0.99,
         )
 
     anim = FuncAnimation(
