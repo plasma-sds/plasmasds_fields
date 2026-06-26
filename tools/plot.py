@@ -174,6 +174,250 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     return cs
 
 
+def contour_slice(R, Z, t, field, field_name,
+                  at_t=None, at_r=None, at_z=None,
+                  r_range=None, z_range=None, t_range=None,
+                  cbar_label="", levels=30, cmap=None, log=False,
+                  axis_order=None, equal_aspect=None,
+                  contour_lines=False, ax=None, save_image=None,
+                  time_resolution='s', figsize=None, dpi=100):
+    """
+    Plot a 2-D contour slice of a 3-D ``(R, Z, t)`` field.
+
+    Exactly one of ``at_t``, ``at_r``, ``at_z`` must be provided;
+    it names both which axis to slice and the coordinate value at
+    which to slice. The nearest sample on that axis is used and
+    the resulting 2-D slice is contoured on the remaining axes:
+
+    * ``at_t`` -> contour on the ``(R, Z)`` plane (snapshot).
+    * ``at_r`` -> contour on the ``(t, Z)`` plane (time evolution
+      at fixed R).
+    * ``at_z`` -> contour on the ``(t, R)`` plane (time evolution
+      at fixed Z).
+
+    Inputs follow the same conventions as :func:`animate_field`:
+    HESEL ``(time, Z, R)`` and motion ``(time, X->R, Y->Z)``
+    layouts are both auto-detected by matching axis sizes against
+    ``field.shape``. Pass ``axis_order`` explicitly when sizes
+    collide.
+
+    Parameters
+    ----------
+    R, Z, t : array_like
+        1-D coordinate axes.
+    field : array_like
+        3-D scalar field; some permutation of ``(R, Z, t)``.
+    field_name : str
+        Name of the field; appears in the plot title alongside the
+        sliced coordinate value.
+    at_t, at_r, at_z : float, optional
+        Coordinate value at which to slice. Exactly one of these
+        must be supplied; the nearest sample on that axis is used.
+        ``at_t`` is interpreted in the units selected by
+        ``time_resolution`` (i.e. seconds for ``'s'``,
+        milliseconds for ``'ms'``, microseconds for ``'us'``);
+        ``at_r`` and ``at_z`` are in meters.
+    r_range, z_range, t_range : sequence of float, optional
+        Two-element ``[min, max]`` crops applied to R, Z and t
+        before slicing.
+    cbar_label : str, optional
+        Label for the colorbar (e.g. ``"n [m^-3]"`` or
+        ``"T_e [eV]"``).
+    levels : int or array_like, default 30
+        Number of contour levels, or explicit level values. When
+        an int, levels are spaced linearly (or logarithmically
+        with ``log=True``) over the slice's ``vmin`` / ``vmax``.
+    cmap : str or Colormap, optional
+        Colormap forwarded to matplotlib.
+    log : bool, default False
+        Use a logarithmic color normalization
+        (:class:`~matplotlib.colors.LogNorm`).
+    axis_order : sequence of {"R", "Z", "t"}, optional
+        Explicit labelling of the 3 axes of ``field``.
+    equal_aspect : bool, optional
+        Force equal axis aspect. Defaults to ``True`` when slicing
+        at fixed t (R and Z share units) and ``False`` otherwise
+        (one axis is time).
+    contour_lines : bool, default False
+        Overlay thin black contour lines on top of the filled
+        contour at the same levels.
+    ax : matplotlib.axes.Axes, optional
+        Axes to draw on. If ``None``, a new figure is created and
+        :func:`matplotlib.pyplot.show` is called before returning.
+    save_image : str or path-like, optional
+        If given, the figure is saved to this path via
+        :func:`matplotlib.figure.Figure.savefig` before any
+        interactive display.
+    time_resolution : {"s", "ms", "us"}, default "s"
+        Unit for the time coordinate. Affects the t-axis ticks
+        when the slice is plotted against time (``at_r`` / ``at_z``
+        cases) and the displayed slice value in the title when
+        slicing at a time (``at_t`` case).
+    figsize : tuple of float, optional
+        Forwarded to :func:`matplotlib.pyplot.subplots`.
+    dpi : int, default 100
+        Figure DPI.
+
+    Returns
+    -------
+    matplotlib.contour.QuadContourSet
+        The contour set drawn (useful for further customization).
+    """
+
+    selectors = [("t", at_t), ("R", at_r), ("Z", at_z)]
+    active = [(n, v) for n, v in selectors if v is not None]
+    if len(active) != 1:
+        raise ValueError(
+            "Exactly one of at_t, at_r, at_z must be provided; "
+            f"got at_t={at_t!r}, at_r={at_r!r}, at_z={at_z!r}."
+        )
+    slice_axis_name, slice_value = active[0]
+
+    time_scales = {"s": 1.0, "ms": 1e3, "us": 1e6}
+    if time_resolution not in time_scales:
+        raise ValueError(
+            f"time_resolution must be one of {list(time_scales)}; "
+            f"got {time_resolution!r}."
+        )
+    time_scale = time_scales[time_resolution]
+
+    R = np.asarray(R)
+    Z = np.asarray(Z)
+    t = np.asarray(t)
+    field = np.asarray(field)
+
+    if R.ndim != 1 or Z.ndim != 1 or t.ndim != 1:
+        raise ValueError(
+            f"R, Z, t must be 1-D; got shapes R{R.shape}, Z{Z.shape}, t{t.shape}."
+        )
+    if field.ndim != 3:
+        raise ValueError(f"field must be 3-D; got shape {field.shape}.")
+
+    if axis_order is None:
+        sizes = {"R": R.size, "Z": Z.size, "t": t.size}
+        order = []
+        for ax_size in field.shape:
+            matches = [n for n, s in sizes.items() if s == ax_size]
+            if len(matches) != 1:
+                raise ValueError(
+                    f"Cannot auto-detect axis layout: field.shape={field.shape} "
+                    f"is ambiguous against sizes R={R.size}, Z={Z.size}, "
+                    f"t={t.size}. Pass `axis_order` explicitly, e.g. "
+                    "axis_order=('t','Z','R')."
+                )
+            order.append(matches[0])
+    else:
+        order = list(axis_order)
+        if sorted(order) != ["R", "Z", "t"]:
+            raise ValueError(
+                "axis_order must be a permutation of ('R','Z','t'); "
+                f"got {order}."
+            )
+        expected = tuple({"R": R.size, "Z": Z.size, "t": t.size}[n] for n in order)
+        if expected != field.shape:
+            raise ValueError(
+                f"axis_order={tuple(order)} implies field.shape={expected}, "
+                f"but got {field.shape}."
+            )
+
+    perm = [order.index(axname) for axname in ("t", "Z", "R")]
+    field = np.transpose(field, perm)
+
+    if r_range is not None:
+        rm = (R >= r_range[0]) & (R <= r_range[1])
+        R, field = R[rm], field[:, :, rm]
+    if z_range is not None:
+        zm = (Z >= z_range[0]) & (Z <= z_range[1])
+        Z, field = Z[zm], field[:, zm, :]
+    if t_range is not None:
+        tm = (t >= t_range[0]) & (t <= t_range[1])
+        t, field = t[tm], field[tm, :, :]
+
+    if slice_axis_name == "t":
+        slice_value_s = slice_value / time_scale
+        idx = int(np.argmin(np.abs(t - slice_value_s)))
+        slice_2d = field[idx, :, :]
+        x_axis, y_axis = R, Z
+        xlabel, ylabel = "R [m]", "Z [m]"
+        title = (
+            f"{field_name} at t = "
+            f"{t[idx] * time_scale:.2f} {time_resolution}"
+        )
+        if equal_aspect is None:
+            equal_aspect = True
+    elif slice_axis_name == "R":
+        idx = int(np.argmin(np.abs(R - slice_value)))
+        slice_2d = field[:, :, idx].T
+        x_axis, y_axis = t * time_scale, Z
+        xlabel, ylabel = f"t [{time_resolution}]", "Z [m]"
+        title = f"{field_name} at R = {R[idx]:.3f} m"
+        if equal_aspect is None:
+            equal_aspect = False
+    else:
+        idx = int(np.argmin(np.abs(Z - slice_value)))
+        slice_2d = field[:, idx, :].T
+        x_axis, y_axis = t * time_scale, R
+        xlabel, ylabel = f"t [{time_resolution}]", "R [m]"
+        title = f"{field_name} at Z = {Z[idx]:.3f} m"
+        if equal_aspect is None:
+            equal_aspect = False
+
+    if log:
+        positive = slice_2d[slice_2d > 0]
+        if positive.size == 0:
+            raise ValueError("log=True but the slice has no positive values.")
+        vmin = float(positive.min())
+        vmax = float(slice_2d.max())
+        norm = LogNorm(vmin=vmin, vmax=vmax)
+        if isinstance(levels, (int, np.integer)):
+            levels = np.logspace(np.log10(vmin), np.log10(vmax), int(levels))
+    else:
+        vmin = float(slice_2d.min())
+        vmax = float(slice_2d.max())
+        norm = Normalize(vmin=vmin, vmax=vmax)
+        if isinstance(levels, (int, np.integer)):
+            levels = np.linspace(vmin, vmax, int(levels))
+
+    created_fig = ax is None
+    if created_fig:
+        fig, ax = plt.subplots(figsize=figsize, dpi=dpi)
+    else:
+        fig = ax.figure
+
+    cs = ax.contourf(x_axis, y_axis, slice_2d,
+                     levels=levels, cmap=cmap, norm=norm)
+    if contour_lines:
+        ax.contour(x_axis, y_axis, slice_2d, levels=cs.levels,
+                   colors="black", linewidths=0.5)
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="5%", pad=0.1)
+    cbar = fig.colorbar(cs, cax=cax)
+    if cbar_label:
+        cbar.set_label(cbar_label, fontweight="bold")
+    for tick_label in cbar.ax.get_xticklabels() + cbar.ax.get_yticklabels():
+        tick_label.set_fontweight("bold")
+    cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
+    cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
+
+    ax.set_xlabel(xlabel, fontweight="bold")
+    ax.set_ylabel(ylabel, fontweight="bold")
+    if equal_aspect:
+        ax.set_aspect("equal")
+    ax.set_title(title, fontweight="bold")
+    for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
+        tick_label.set_fontweight("bold")
+    ax.xaxis.get_offset_text().set_fontweight("bold")
+    ax.yaxis.get_offset_text().set_fontweight("bold")
+
+    if save_image is not None:
+        fig.savefig(save_image, bbox_inches="tight")
+    if created_fig:
+        plt.show()
+
+    return cs
+
+
 def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
                   r_range=None, z_range=None, t_range=None,
                   fps=10, cmap=None, log=False, levels=30,
