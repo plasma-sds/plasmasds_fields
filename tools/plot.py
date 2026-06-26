@@ -145,8 +145,9 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
         line_plotter = ax.contour if is_regular else ax.tricontour
         line_plotter(R, Z, field, levels=cs.levels, colors="black", linewidths=0.5)
 
-    ax.set_xlabel("R [m]", fontweight="bold")
-    ax.set_ylabel("Z [m]", fontweight="bold")
+    label_fs = plt.rcParams["font.size"] + 2
+    ax.set_xlabel("R [m]", fontweight="bold", fontsize=label_fs)
+    ax.set_ylabel("Z [m]", fontweight="bold", fontsize=label_fs)
     if equal_aspect:
         ax.set_aspect("equal")
     if title:
@@ -419,7 +420,9 @@ def contour_slice(R, Z, t, field, field_name,
 
         cbar = fig.colorbar(artist, ax=ax, shrink=0.6, pad=0.1)
 
-        ax.set_zlabel(cbar_label or field_name, fontweight="bold", rotation=90)
+        ax.set_zlabel(cbar_label or field_name, fontweight="bold",
+                      rotation=90,
+                      fontsize=plt.rcParams["font.size"] + 2)
         for tick_label in ax.get_zticklabels():
             tick_label.set_fontweight("bold")
         ax.zaxis.get_offset_text().set_fontweight("bold")
@@ -448,8 +451,9 @@ def contour_slice(R, Z, t, field, field_name,
     cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
     cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
 
-    ax.set_xlabel(xlabel, fontweight="bold")
-    ax.set_ylabel(ylabel, fontweight="bold")
+    label_fs = plt.rcParams["font.size"] + 2
+    ax.set_xlabel(xlabel, fontweight="bold", fontsize=label_fs)
+    ax.set_ylabel(ylabel, fontweight="bold", fontsize=label_fs)
     ax.set_title(title, fontweight="bold")
     for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
         tick_label.set_fontweight("bold")
@@ -727,9 +731,10 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
         cbar.ax.xaxis.get_offset_text().set_fontweight("bold")
         cbar.ax.yaxis.get_offset_text().set_fontweight("bold")
 
+    label_fs = plt.rcParams["font.size"] + 2
     for ax in axes_list:
-        ax.set_xlabel("R [m]", fontweight="bold")
-        ax.set_ylabel("Z [m]", fontweight="bold")
+        ax.set_xlabel("R [m]", fontweight="bold", fontsize=label_fs)
+        ax.set_ylabel("Z [m]", fontweight="bold", fontsize=label_fs)
     fig.suptitle(f"{field_name}\nt = ", fontweight="bold")
 
     fig.tight_layout(rect=[0, 0, 1, 0.92])
@@ -743,8 +748,8 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
             if log:
                 frame_data = np.where(frame_data > 0, frame_data, norm.vmin)
             ax.contourf(R, Z, frame_data, levels=lvls, cmap=cmap, norm=norm)
-            ax.set_xlabel("R [m]", fontweight="bold")
-            ax.set_ylabel("Z [m]", fontweight="bold")
+            ax.set_xlabel("R [m]", fontweight="bold", fontsize=label_fs)
+            ax.set_ylabel("Z [m]", fontweight="bold", fontsize=label_fs)
             if equal_aspect:
                 ax.set_aspect("equal")
             for tick_label in ax.get_xticklabels() + ax.get_yticklabels():
