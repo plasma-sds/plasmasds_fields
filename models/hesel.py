@@ -48,7 +48,7 @@ class HESEL:
 
         self.R_axis = self.file["data/xanimation/xgrid"][0, :]
         self.Z_axis = self.file["data/xanimation/ygrid"][:, 0]
-        self.time_axis = self.file["data/xanimation/time"][:]
+        self.time_axis = self.file["data/xanimation/time"][:, 0]
 
         self.dR = self._axis_spacing(self.R_axis)
         self.dZ = self._axis_spacing(self.Z_axis)
