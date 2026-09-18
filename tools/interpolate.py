@@ -22,21 +22,6 @@ class ProfileInterpolator1D:
         self.profile = np.copy(self.original_profile)
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
-    def reset(self):
-        """Reset ``self.position`` / ``self.profile`` to the originals and rebuild the interpolator.
-
-        Discards any corrections that have been applied since construction.
-        """
-        sorted_indices = np.argsort(self.original_position)
-        self.position = np.copy(self.original_position[sorted_indices])
-        self.profile = np.copy(self.original_profile[sorted_indices])
-        self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
-
-    def _regenerate_interpolator(self, idx, profile_value):
-        """Overwrite the profile at ``idx`` and rebuild the interpolator."""
-        self.profile[idx] = profile_value
-        self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
-
     def __call__(self, position_values):
         """
         Call the instance directly to interpolate at ``position_values``.
@@ -45,6 +30,11 @@ class ProfileInterpolator1D:
         ``interp.interpolate(x)`` return the same values.
         """
         return self.interpolator(position_values)
+
+    def _regenerate_interpolator(self, idx, profile_value):
+        """Overwrite the profile at ``idx`` and rebuild the interpolator."""
+        self.profile[idx] = profile_value
+        self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def correct(self, position_value, profile_value, by_index=False):
         """
@@ -137,6 +127,16 @@ class ProfileInterpolator1D:
         self.position = new_position[sorted_indices]
         self.profile = new_profile[sorted_indices]
 
+        self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
+
+    def reset(self):
+        """Reset ``self.position`` / ``self.profile`` to the originals and rebuild the interpolator.
+
+        Discards any corrections that have been applied since construction.
+        """
+        sorted_indices = np.argsort(self.original_position)
+        self.position = np.copy(self.original_position[sorted_indices])
+        self.profile = np.copy(self.original_profile[sorted_indices])
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def show(self, show_original=True, ax=None):
