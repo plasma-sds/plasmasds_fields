@@ -440,8 +440,8 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     
     return filtered_surfs
 
-def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
-                               limit_number = 100, order = 2):
+def label_surfaces(flt, limit_error = 0.015,
+                   limit_number = 100, order = 2):
     """
     Filter flux surfaces and their points by polyfit. Used to differentiate
     island flux surfaces. The method includes a polinom fit (ideally second
@@ -539,7 +539,54 @@ def filter_surfaces_by_polyfit(flt, limit_error = 0.015,
         
     return surfaces
 
-def filter_surfaces_by_Radius(surfaces, R_range=None):
+def filter_surfaces_by_type(flt, point_types=None):
+    """
+    Filter flux surfaces and their points by point type
+    of the surface.
+
+    The input may be either a list of :class:`FluxSurface` instances (as
+    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
+    result object exposing ``poincare_res.surfs``.
+    Surfaces left with no points are dropped.
+
+    Parameters
+    ----------
+    surfaces : list of FluxSurface or field-line-tracer result
+        Source surfaces to filter.
+    point_types : sequence of integer, optional
+        Arbitrary number of elements to filter. 
+        If ``None`` (default), no constraint on ``point_types``.
+
+    Returns
+    -------
+    list of FluxSurface
+        New :class:`FluxSurface` instances containing only the points
+        that has a specific point type. 
+        Surfaces that end up empty (or that started empty / had ``None``
+        coordinates) are omitted from the result.
+    """
+    
+    if not isinstance(flt, list):
+        surfs = flt.poincare_res.surfs
+    else:
+        surfs = flt
+    
+    filtered_surfs = []
+    
+    for surf in surfs:
+        if type(surf.points.x1) != type(None) and surf.n > 0:
+            if point_types is None: np.ones(surf.n, dtype=bool)
+            else: mask = np.isin(surf.points.point_type, point_types)
+            
+            # Only include surface if it has at least one point
+            if np.any(mask):
+                # Filter the points
+                surf.filter_points(mask)
+                filtered_surfs.append(surf)
+        
+    return filtered_surfs
+
+def filter_surfaces_by_radius(surfaces, R_range=None):
     """
     Filter flux surfaces and their points by radial coordinate R range
     of the surface.
