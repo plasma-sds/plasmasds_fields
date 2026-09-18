@@ -3,17 +3,17 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
 class ProfileInterpolator1D:
-    def __init__(self, profile, position):
+    def __init__(self,  position, profile):
         """
         Initialize the 1D interpolator with input profile and position arrays.
 
         Parameters
-        ----------
-        profile : array-like
-            The array of profile values corresponding to ``position``.
+        ----------          
         position : array-like
             The array of position values (e.g. R coordinates or position
             indices).
+        profile : array-like
+            The array of profile values corresponding to ``position``.
         """
         self.original_profile = np.array(profile)
         self.original_position = np.array(position)
