@@ -36,7 +36,7 @@ class ProfileInterpolator1D:
         self.profile[idx] = profile_value
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
-    def correct(self, position_value, profile_value, by_index=False):
+    def correct_datapoints(self, position_value, profile_value, by_index=False):
         """
         Override the profile at one or more existing datapoints.
 
@@ -88,7 +88,7 @@ class ProfileInterpolator1D:
 
         self._regenerate_interpolator(indices, profile_values)
 
-    def add(self, position_value, profile_value):
+    def add_datapoints(self, position_value, profile_value):
         """
         Append new datapoints to ``self.position`` / ``self.profile``.
 
