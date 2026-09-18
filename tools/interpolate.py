@@ -43,6 +43,15 @@ class ProfileInterpolator1D:
         """
         return self.interpolator(position_values)
 
+    def __call__(self, position_values):
+        """
+        Call the instance directly to interpolate at ``position_values``.
+
+        Equivalent to :meth:`interpolate`, so ``interp(x)`` and
+        ``interp.interpolate(x)`` return the same values.
+        """
+        return self.interpolator(position_values)
+
     def correct(self, position_value, profile_value, by_index=False):
         """
         Override the profile at one or more existing datapoints.
