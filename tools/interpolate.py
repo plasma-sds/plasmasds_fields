@@ -37,12 +37,6 @@ class ProfileInterpolator1D:
         self.profile[idx] = profile_value
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
-    def interpolate(self, position_values):
-        """
-        Interpolate profile values for given ``position_values``.
-        """
-        return self.interpolator(position_values)
-
     def __call__(self, position_values):
         """
         Call the instance directly to interpolate at ``position_values``.
