@@ -206,6 +206,8 @@ class Range(object):
         self.density  = [self.densityMin , self.densityMax ]
         self.z  = [self.zMin , self.zMax ]
 
+
+
 def load_w7x_flux_surfaces(filename):
     """
     Load W7-X flux surfaces from an XML file produced by the field-line
@@ -251,6 +253,138 @@ def load_w7x_flux_surfaces(filename):
         surfaces.append(surface)
 
     return surfaces
+
+def _check_surfaces(flt):
+    """
+    Validate and extract the list of FluxSurface instances from flt.
+    """
+    
+    if isinstance(flt, list): surfs = flt
+    elif hasattr(flt, "poincare_res") and hasattr(flt.poincare_res, "surfs"):
+        surfs = flt.poincare_res.surfs
+        if not isinstance(surfs, list):
+            raise TypeError(
+                "flt.poincare_res.surfs must be a list of FluxSurface," 
+                f"instances, got {type(surfs).__name__}." )
+    else:
+        raise TypeError(
+            "flt must be a list of FluxSurface instances or an object "
+            f"exposing 'poincare_res.surfs'; got {type(flt).__name__}." )
+
+    if not all(isinstance(s, FluxSurface) for s in surfs):
+        bad_idx = next(i for i, s in enumerate(surfs) 
+                       if not isinstance(s, FluxSurface))
+        raise TypeError(
+            f"All elements must be FluxSurface instances; "
+            f"element {bad_idx} is {type(surfs[bad_idx]).__name__}." )
+
+def _check_scalar(name, value, integer=False, min_value=None, max_value=None,
+                  inclusive_min=True, inclusive_max=True, domain=None):
+    """
+    Validate a single scalar argument.
+    """
+    
+    if value is None: return
+
+    # --- type check ---
+    if integer:
+        if not isinstance(value, (int, np.integer)) or isinstance(value, bool):
+            raise TypeError(
+                f"{name} must be an integer, got {value!r}.")
+    else:
+        if not isinstance(value, (int, float, np.integer, np.floating)):
+            raise TypeError(
+                f"{name} must be numeric, got {value!r}.")
+
+    # --- domain check ---
+    if domain is not None and value not in domain:
+        raise ValueError(
+            f"{name} must be one of {sorted(domain)!r}, got {value!r}.")
+    
+    # --- bounds check ---
+    if min_value is not None:
+        ok = value >= min_value if inclusive_min else value > min_value
+        if not ok:
+            op = ">=" if inclusive_min else ">"
+            raise ValueError(
+                f"{name} must be {op} {min_value}, got {value!r}.")
+
+    if max_value is not None:
+        ok = value <= max_value if inclusive_max else value < max_value
+        if not ok:
+            op = "<=" if inclusive_max else "<"
+            raise ValueError(
+                f"{name} must be {op} {max_value}, got {value!r}.")
+
+def _check_range(name, value, integer=False, allow_negative=True):
+    """Validate a [start, end] range argument."""
+    if value is None: return
+
+    if not isinstance(value, (list, tuple, np.array)) or len(value) != 2:
+        raise ValueError(
+            f"{name} must be a two-element sequence ",
+            f"[start, end], got {value!r}.")
+
+    lo, hi = value
+
+    if integer:
+        if not all(isinstance(v, (int, np.integer)) 
+                   and not isinstance(v, bool)
+                   for v in (lo, hi)):
+            raise TypeError(
+                f"{name} elements must be integers, got {value!r}.")
+    else:
+        if not all(isinstance(v, (int, float, np.integer, np.floating)) 
+                   and not isinstance(v, bool)
+                   for v in (lo, hi)):
+            raise TypeError(
+                f"{name} elements must be numeric, got {value!r}.")
+
+    if not allow_negative and (lo < 0 or hi < 0):
+        raise ValueError(
+            f"{name} elements must be >= 0, got {value!r}.")
+
+    if lo >= hi:
+        raise ValueError(
+            f"{name} must satisfy start < end, got {value!r}." )
+
+def _check_sequence(name, value, integer=False, min_value=None, max_value=None,
+                    inclusive_min=True, inclusive_max=True, domain=None, 
+                    min_length=None, max_length=None,
+                    length=None, seq_types=(list, tuple, np.ndarray)):
+    """
+    Validate a sequence argument, checking every element against the
+    same conditions as :func:`_check_scalar`.
+    """
+    
+    if value is None: return
+
+    if not isinstance(value, seq_types):
+        raise TypeError(
+            f"{name} must be a sequence ({[t.__name__ for t in seq_types]}), "
+            f"got {type(value).__name__}." )
+
+    n = len(value)
+    if length is not None and n != length:
+        raise ValueError(
+            f"{name} must have exactly {length} elements, got {n}.")
+
+    if min_length is not None and n < min_length: raise ValueError(
+            f"{name} must have at least {min_length} elements, got {n}.")
+
+    if max_length is not None and n > max_length:
+        raise ValueError(
+            f"{name} must have at most {max_length} elements, got {n}.")
+
+    for i, elem in enumerate(value):
+        try:
+            _check_scalar(
+                f"{name}[{i}]", elem,
+                integer=integer, min_value=min_value, max_value=max_value,
+                inclusive_min=inclusive_min, inclusive_max=inclusive_max,
+                domain=domain)
+        except (TypeError, ValueError) as e:
+            raise type(e)(f"Invalid element in {name}: {e}") from e
 
 def box_plot_coordinates(r_min, z_min, r_max, z_max):
     """
@@ -312,7 +446,23 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
         the value is interpreted as the destination filename and the
         figure is written as a PNG (a ``.png`` extension is appended if
         missing).
+            
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``surf_range``, ``r_range``, or ``z_range`` is not a two-element
+        sequence, if its start is not strictly less than its end, or if
+        ``surf_range`` contains negative indices.
     """
+    
+    _check_surfaces(surfaces)
+    _check_range("r_range", r_range)
+    _check_range("z_range", z_range)
     
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
@@ -395,12 +545,29 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
         that pass both the ``R`` and ``z`` filters. 
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
+        
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``surf_range``, ``r_range``, or ``z_range`` is not a two-element
+        sequence, if its start is not strictly less than its end, or if
+        ``surf_range`` contains negative indices.
     """
     
     if not isinstance(flt, list):
         surfs = flt.poincare_res.surfs
     else:
         surfs = flt
+    
+    # --- validate range arguments ---
+    _check_range("surf_range", surf_range, integer=True, allow_negative=False)
+    _check_range("r_range", r_range)
+    _check_range("z_range", z_range)
     
     # Apply surface range filter first
     if surf_range is not None:
@@ -486,7 +653,23 @@ def label_surfaces(flt, limit_error = 0.015,
             'point_type' group.
             - surf.errors: list, contains the error of polinom fit for each 
             'point_type' group.
+            
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``limit_error``, ``limit_number``, or ``order`` is not a scalar 
+        variable and not >0.
     """
+    
+    _check_surfaces(flt)
+    _check_scalar("limit_error", limit_error, min_value=0)
+    _check_scalar("limit_number", limit_number, integer=True, min_value=0)
+    _check_scalar("order", order, integer=True, min_value=0)
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     surfaces = list()
@@ -566,7 +749,10 @@ def filter_surfaces_by_type(flt, point_types=None):
         coordinates) are omitted from the result.
     """
     
-    if not isinstance(flt, list):
+    _check_surfaces(flt)
+    _check_sequence("point_types", point_types, domain=[0,1,2])
+    
+    if not isinstance(flt, list): 
         surfs = flt.poincare_res.surfs
     else:
         surfs = flt
@@ -612,7 +798,21 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
         that pass both the ``R`` surface (or part of it) filters. 
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
+            
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``R_range`` is not a two-element
+        sequence, if its start is not strictly less than its end.
     """
+    
+    _check_surfaces(surfaces)
+    _check_range("R_range", R_range)
     
     surfs = (surfaces if isinstance(surfaces, list) 
              else surfaces.poincare_res.surfs)
@@ -657,7 +857,21 @@ def filter_surfaces_by_error(surfaces, error_range=None):
         that pass both the ``error_range`` filters. 
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
+        
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``error_range`` is not a two-element
+        sequence, if its start is not strictly less than its end.
     """
+    
+    _check_surfaces(surfaces)
+    _check_range("error_range", error_range)
     
     surfs = (surfaces if isinstance(surfaces, list) 
              else surfaces.poincare_res.surfs)
@@ -714,7 +928,22 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
         the value is interpreted as the destination filename and the
         figure is written as a PNG (a ``.png`` extension is appended if
         missing).
+        
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``r_range``, or ``z_range`` is not a two-element
+        sequence, if its start is not strictly less than its end.
     """
+    
+    _check_surfaces(surfaces)
+    _check_range("r_range", r_range)
+    _check_range("z_range", z_range)
     
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
