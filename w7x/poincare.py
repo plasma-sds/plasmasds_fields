@@ -270,10 +270,10 @@ def _check_surfaces(flt):
         raise TypeError(
             "flt must be a list of FluxSurface instances or an object "
             f"exposing 'poincare_res.surfs'; got {type(flt).__name__}." )
-
-    if not all(isinstance(s, FluxSurface) for s in surfs):
+    
+    if not all(type(s).__name__ == "FluxSurface" for s in surfs):
         bad_idx = next(i for i, s in enumerate(surfs) 
-                       if not isinstance(s, FluxSurface))
+                       if not type(s).__name__ == "FluxSurface")
         raise TypeError(
             f"All elements must be FluxSurface instances; "
             f"element {bad_idx} is {type(surfs[bad_idx]).__name__}." )
@@ -769,6 +769,9 @@ def filter_surfaces_by_type(flt, point_types=None):
     else:
         surfs = flt
     
+    if surfs[0].errors == [None]:
+        raise Exception("No classification happened, run label_surfaces()!")
+    
     filtered_surfs = []
     
     for surf in surfs:
@@ -828,6 +831,10 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
     
     surfs = (surfaces if isinstance(surfaces, list) 
              else surfaces.poincare_res.surfs)
+    
+    if surfs[0].errors == [None]:
+        raise Exception("No classification happened, run label_surfaces()!")
+    
     filtered_surfs = list()
     
     for i, surf in enumerate(surfs):
@@ -887,6 +894,10 @@ def filter_surfaces_by_error(surfaces, error_range=None):
     
     surfs = (surfaces if isinstance(surfaces, list) 
              else surfaces.poincare_res.surfs)
+    
+    if surfs[0].errors == [None]:
+        raise Exception("No classification happened, run label_surfaces()!")
+    
     filtered_surfs = list()
     
     for i, surf in enumerate(surfs):
@@ -959,6 +970,9 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
     
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
+    
+    if surfaces[0].errors == [None]:
+        raise Exception("No classification happened, run label_surfaces()!")
 
     colors = ["red", "orange", "yellow", "green", "blue",
               "purple", "indigo", "violet"]

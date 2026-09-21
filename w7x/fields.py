@@ -1,16 +1,18 @@
 import numpy as np
-from fields import _check_surfaces, _check_scalar, _check_sequence, _check_range
-
+import poincare as pc
 
 def add_density_by_type(flt, density_function):
     """
     Assign a density to each surface based on the type of the surface
-    points, obtained prior (for example by polinom fit)
+    points, obtained prior (for example by polinom fit).
+    
+    If the type is not defined prior, then polinom fit executed automatically.
 
     Parameters
     ----------
     flt : list or object
-        Either a list of Surf objects or an object with ``flt.poincare_res.surfs``.
+        Either a list of Surf objects or an object with 
+        ``flt.poincare_res.surfs``.
     density_function : callable
         A scipy 1D interpolator (e.g. ``scipy.interpolate.interp1d``) that
         returns the density at a given radial position ``R``. Typically this
@@ -37,7 +39,7 @@ def add_density_by_type(flt, density_function):
         If ``density_function`` is not a callable.
     """
     
-    _check_surfaces(flt)
+    pc._check_surfaces(flt)
     
     if not callable(density_function):
         raise TypeError(
@@ -45,6 +47,11 @@ def add_density_by_type(flt, density_function):
             f"got {type(density_function).__name__}.")
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
+    
+    if surfs[0].errors == [None]:
+        print("Warning: no classification happened, "
+              "necessary data obtained by label_surfaces()")
+        surfs = pc.label_surfaces(surfs)
     
     for surf in surfs:
         for i in range(len(surf.errors)):
@@ -94,16 +101,21 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         not strictly less than its end.
     """
     
-    _check_surfaces(flt)
-    _check_range("density_range", density_range, allow_negative=False)
+    pc._check_surfaces(flt)
+    pc._check_range("density_range", density_range, allow_negative=False)
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
-
-    filtered_surfs = []
+    
+    if all([s.density==[0] for s in surfs]):
+        raise Exception("No density assignation happened, "
+                        "run add_density_by_type()!")
+    
+    filtered_surfs = list()
+    
     for surf in surfs:
         
         mask = np.zeros(surf.n, dtype=bool)
-        print(surf.density)
+        
         for i, dens in enumerate(surf.density):
             
             if not include_zero and dens == 0: continue
@@ -165,11 +177,16 @@ def extract_points(surfaces):
         non-numeric / non-integer elements.
     """
     
-    _check_surfaces(surfaces)
+    pc._check_surfaces(surfaces)
     
     data = {"x1": list(), "x2": list(), "x3": list(), 
             "r": list(), "z": list(), "density": list(), 
             "point_type": list(), "surface_radius": list()}
+    
+    if all([s.density==[0] for s in surfaces]):
+        raise Exception("No density assignation happened, "
+                        "run add_density_by_type()!")
+    
     for surf in surfaces:
         data["x1"] += surf.points.x1.tolist()
         data["x2"] += surf.points.x2.tolist()
@@ -179,6 +196,7 @@ def extract_points(surfaces):
         density = np.array(surf.density)[surf.points.point_type]
         data["density"] += density.tolist()
         data["point_type"] += surf.points.point_type.tolist()
+        
         data["surface_radius"] += surf.coeffs[:, 2][surf.points.point_type
                                                     ].tolist()
         
@@ -253,13 +271,13 @@ def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005,
         if ``dr``, ``dz`` or ``bottom_value`` are not positive scalars.
     """
     
-    _check_sequence("r", r)
-    _check_sequence("z", z)
-    _check_scalar("dr", dr, min_value=0)
-    _check_scalar("dz", dz, min_value=0)
-    _check_scalar("bottom_value", bottom_value, min_value=0)
-    _check_range("r_limits", r_limits)
-    _check_range("z_limits", z_limits)
+    pc._check_sequence("r", r)
+    pc._check_sequence("z", z)
+    pc._check_scalar("dr", dr, min_value=0)
+    pc._check_scalar("dz", dz, min_value=0)
+    pc._check_scalar("bottom_value", bottom_value, min_value=0)
+    pc._check_range("r_limits", r_limits)
+    pc._check_range("z_limits", z_limits)
     
     from scipy.interpolate import griddata
 
