@@ -369,7 +369,8 @@ def _check_sequence(name, value, integer=False, min_value=None, max_value=None,
         raise ValueError(
             f"{name} must have exactly {length} elements, got {n}.")
 
-    if min_length is not None and n < min_length: raise ValueError(
+    if min_length is not None and n < min_length: 
+        raise ValueError(
             f"{name} must have at least {min_length} elements, got {n}.")
 
     if max_length is not None and n > max_length:
@@ -450,14 +451,13 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
+        If ``surfaces`` is not a list of FluxSurface-like objects and does not
         expose ``poincare_res.surfs``, or if any element lacks the
         expected ``points``/``n`` attributes; or if a range argument has
         non-numeric / non-integer elements.
     ValueError
-        If ``surf_range``, ``r_range``, or ``z_range`` is not a two-element
-        sequence, if its start is not strictly less than its end, or if
-        ``surf_range`` contains negative indices.
+        If ``r_range``, or ``z_range`` is not a two-element
+        sequence, if its start is not strictly less than its end.
     """
     
     _check_surfaces(surfaces)
@@ -559,15 +559,16 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
         ``surf_range`` contains negative indices.
     """
     
+    # --- validate range arguments ---
+    _check_surfaces(flt)
+    _check_range("surf_range", surf_range, integer=True, allow_negative=False)
+    _check_range("r_range", r_range)
+    _check_range("z_range", z_range)
+    
     if not isinstance(flt, list):
         surfs = flt.poincare_res.surfs
     else:
         surfs = flt
-    
-    # --- validate range arguments ---
-    _check_range("surf_range", surf_range, integer=True, allow_negative=False)
-    _check_range("r_range", r_range)
-    _check_range("z_range", z_range)
     
     # Apply surface range filter first
     if surf_range is not None:
@@ -747,6 +748,17 @@ def filter_surfaces_by_type(flt, point_types=None):
         that has a specific point type. 
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
+            
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``point_types`` is not a sequence of elements that are 
+        contained by a predefined set (0, 1 or 2).
     """
     
     _check_surfaces(flt)
@@ -807,8 +819,8 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
         expected ``points``/``n`` attributes; or if a range argument has
         non-numeric / non-integer elements.
     ValueError
-        If ``R_range`` is not a two-element
-        sequence, if its start is not strictly less than its end.
+        If ``R_range`` is not a two-element sequence, if its start is
+        not strictly less than its end.
     """
     
     _check_surfaces(surfaces)
@@ -866,8 +878,8 @@ def filter_surfaces_by_error(surfaces, error_range=None):
         expected ``points``/``n`` attributes; or if a range argument has
         non-numeric / non-integer elements.
     ValueError
-        If ``error_range`` is not a two-element
-        sequence, if its start is not strictly less than its end.
+        If ``error_range`` is not a two-element sequence, if its start is 
+        not strictly less than its end.
     """
     
     _check_surfaces(surfaces)

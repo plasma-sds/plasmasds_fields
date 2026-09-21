@@ -1,4 +1,5 @@
 import numpy as np
+from fields import _check_surfaces, _check_scalar, _check_sequence, _check_range
 
 
 def add_density_by_type(flt, density_function):
@@ -24,7 +25,24 @@ def add_density_by_type(flt, density_function):
     -------
     list
         The updated list of surfaces.
+    
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``density_function`` is not a callable.
     """
+    
+    _check_surfaces(flt)
+    
+    if not callable(density_function):
+        raise TypeError(
+            f"density_function must be callable, "
+            f"got {type(density_function).__name__}.")
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     
@@ -63,7 +81,21 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     -------
     list of FluxSurface
         The surfaces (unmodified, by reference) that pass the filter.
+    
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``density_range`` is not two-element sequence, if its start is
+        not strictly less than its end.
     """
+    
+    _check_surfaces(flt)
+    _check_range("density_range", density_range, allow_negative=False)
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
 
@@ -123,7 +155,17 @@ def extract_points(surfaces):
             island trajectories.
         "surface_radius" : ndarray of shape (N,)
             The radial position of the surface (or part of it).
+    
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
     """
+    
+    _check_surfaces(surfaces)
     
     data = {"x1": list(), "x2": list(), "x3": list(), 
             "r": list(), "z": list(), "density": list(), 
@@ -196,7 +238,29 @@ def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005,
     density_grid : ndarray of shape (nZ, nR)
         2-D density field on ``np.meshgrid(R_axis, Z_axis)``, with
         ``density_grid[i, j]`` corresponding to ``(R_axis[j], Z_axis[i])``.
+    
+    Raises
+    ------
+    TypeError
+        If ``flt`` is not a list of FluxSurface-like objects and does not
+        expose ``poincare_res.surfs``, or if any element lacks the
+        expected ``points``/``n`` attributes; or if a range argument has
+        non-numeric / non-integer elements.
+    ValueError
+        If ``r_limits`` or ``z_limits`` is not two-element sequence, 
+        if its start is not strictly less than its end.
+        If ``r`` or ``z`` are not sqeuence of numbers, 
+        if ``dr``, ``dz`` or ``bottom_value`` are not positive scalars.
     """
+    
+    _check_sequence("r", r)
+    _check_sequence("z", z)
+    _check_scalar("dr", dr, min_value=0)
+    _check_scalar("dz", dz, min_value=0)
+    _check_scalar("bottom_value", bottom_value, min_value=0)
+    _check_range("r_limits", r_limits)
+    _check_range("z_limits", z_limits)
+    
     from scipy.interpolate import griddata
 
     r = np.asarray(r, dtype=float)
