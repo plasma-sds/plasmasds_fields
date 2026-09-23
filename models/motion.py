@@ -7,7 +7,7 @@ Created on Thu Jun 11 20:28:31 2026
 import numpy as np
 import h5py
 
-def perturbation_on_field(R, Z, field, 
+def perturbation_gaussian(R, Z, field, 
                           dt, r_trajectory , z_trajectory , 
                           perturbation_fwhm, perturbation_ampl,
                           file=None, return_array=True):
@@ -26,8 +26,8 @@ def perturbation_on_field(R, Z, field,
     field : numpy.ndarray, shape (NR, NZ)
         2D background density field [m^-3] onto which filament
         contributions are added at each time step.
-    t : numpy.ndarray, shape (Nt,)
-        1D array of time stamps [s] defining the simulation time axis.
+    dt : float
+        Time step of the simulation.
     r_trajectory : list of array-like, length n_filaments
         X-position [m] of each filament at every time step.
         r_trajectory[i][t_i] gives the x-coordinate of filament i at
@@ -127,6 +127,113 @@ def perturbation_on_field(R, Z, field,
                         G_ind_z[0] : G_ind_z[-1] +1] += G_field
                 
             except: continue
+        
+        if return_array: data["field"][t_i, :, :] = den_act
+            
+        if not isinstance(file, type(None)):
+            # Save arrays to an HDF5 file
+            f.create_dataset("field_" + str(t_i).zfill(5), 
+                              data = den_act, compression="gzip")
+    
+    if return_array: return data
+    else: return None
+
+def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
+                      perturbation_wavelength, perturbation_ampl,
+                      file=None, return_array=True):
+    """
+    Simulates the evolution of a 2D plasma density field over time by
+    projecting a travelling sine perturbation wave, modelled as constant 
+    density areas on a background density profile. Results can be saved to an 
+    HDF5 file and/or returned as an in-memory dictionary.
+    
+    In each horizontal slab of the 2D background profile the model sets 
+    all the density values between the center line and the sine wave to 
+    the one measured at the center line.
+
+    Parameters
+    ----------
+    R : numpy.ndarray, shape (NR,)
+        1D array of R-coordinates of the spatial grid [m].
+    Z : numpy.ndarray, shape (NZ,)
+        1D array of Z-coordinates of the spatial grid [m].
+    field : numpy.ndarray, shape (NR, NZ)
+        2D background density field [m^-3] onto which filament
+        contributions are added at each time step.
+    dt : float
+        Time step of the simulation.
+    nt : integer
+        Number of timesteps (total time is equal to nt*dt).
+    r_trajectory : numpy.ndarray, shape (NZ,)
+        Discribes the vertical center line of the sine perturbation wave.
+        (usually a parabolic line along z)
+    perturbation_speed : float
+        Vertical propagation speed of sine perturbation wave.
+    perturbation_wavelength : float
+        Wave length of the sine perturbation wave.
+    perturbation_ampl : float
+        Amplitude of displacement in the sine perturbation wave.
+    file : str or path-like, optional
+        If provided, results are written to an HDF5 file at this path.
+        The file contains datasets 'R', 'Z', 't', and one dataset per
+        time step named 'field_TTTTT' (zero-padded index).
+        The default is None (no file output).
+    return_array : bool, optional
+        If True, the time-resolved density field is accumulated in
+        memory and returned as a dictionary. Set to False to reduce
+        memory usage when only file output is needed.
+        The default is True.
+
+    Returns
+    -------
+    data : dict, only returned when return_array=True
+        Dictionary with the following keys:
+
+        - ``'R'``  : numpy.ndarray, shape (Nx,)  — x-coordinate array.
+        - ``'Z'``  : numpy.ndarray, shape (Ny,)  — y-coordinate array.
+        - ``'t'``  : numpy.ndarray, shape (Nt,)  — time array.
+        - ``'field'``  : numpy.ndarray, shape (Nt, Nx, Ny) — density field
+          at each time step, background plus all filament contributions.
+
+        Returns None if return_array=False.
+
+    """
+    
+    t = np.arange(nt) * dt
+    
+    if not isinstance(file, type(None)):
+        # create the output file, fill it after
+        f = h5py.File(file, "w")
+        f.create_dataset("R", data = R, compression="gzip")
+        f.create_dataset("Z", data = Z, compression="gzip")
+        f.create_dataset("t", data = t, compression="gzip")
+    
+    if return_array:
+        data = {"R": R, "Z": Z, "t": t,
+                "field": np.zeros((len(t), len(R), len(Z)))}
+    
+    # iterate through all the frames and the filaments
+    mask = np.zeros(len(R), dtype=bool)
+    for t_i in range(len(t)):
+        den_act = field.copy()
+        
+        for z_i in range(len(Z)):
+            r0_center = r_trajectory[z_i]
+            
+            k = 2 * np.pi / perturbation_wavelength
+            omega = k * perturbation_speed
+            r0_act = (r0_center + perturbation_ampl
+                      * np.cos(k * Z[z_i] - omega * t[t_i]))
+            
+            peak = np.interp(r0_center, R, den_act[:, z_i])
+            
+            
+            if r0_act < r0_center: r_min, r_max = r0_act, r0_center
+            else: r_min, r_max = r0_center, r0_act
+            mask[:] = (R < r_max) & (R > r_min)
+            
+            den_act[mask, z_i] = peak
+            
         
         if return_array: data["field"][t_i, :, :] = den_act
             
