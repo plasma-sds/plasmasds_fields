@@ -320,9 +320,9 @@ def _check_range(name, value, integer=False, allow_negative=True):
     """Validate a [start, end] range argument."""
     if value is None: return
 
-    if not isinstance(value, (list, tuple, np.array)) or len(value) != 2:
+    if not isinstance(value, (list, tuple, np.ndarray)) or len(value) != 2:
         raise ValueError(
-            f"{name} must be a two-element sequence ",
+            f"{name} must be a two-element sequence "
             f"[start, end], got {value!r}.")
 
     lo, hi = value
