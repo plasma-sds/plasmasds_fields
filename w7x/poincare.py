@@ -1004,7 +1004,7 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
             print("Surface {} contains no points!".format(i + 1))
     
     for i in range(len(labels)): 
-        plt.scatter([0],[0], s=50, c=colors[i], label=labels[i])
+        ax.scatter([], [], s=50, color=colors[i], label=labels[i])
     ax.set_xlabel("R [m]")
     ax.set_ylabel("z [m]")
 
