@@ -1,4 +1,5 @@
 import copy
+import warnings
 import numpy as np
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
@@ -612,6 +613,28 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     
     return filtered_surfs
 
+# Surface labelling is validated for points with R >= R_MIN_LABEL and
+# |Z| <= Z_MAX_LABEL. Outside it the code runs, but the labelling and the
+# subsequent density allocation may be off.
+R_MIN_LABEL = 6.1   # [m]
+Z_MAX_LABEL = 1.0   # [m]
+
+def _check_label_window(surfs):
+    """
+    Warn if any surface point has R < R_MIN_LABEL or |Z| > Z_MAX_LABEL.
+    """
+    r = np.concatenate([s.points.r for s in surfs])
+    z = np.concatenate([s.points.z for s in surfs])
+    n_r = np.count_nonzero(r < R_MIN_LABEL)
+    n_z = np.count_nonzero(np.abs(z) > Z_MAX_LABEL)
+    if n_r or n_z:
+        warnings.warn(
+            f"{n_r} point(s) with R < {R_MIN_LABEL} m (min R = {r.min():.3f} m)"
+            f" and {n_z} point(s) with |Z| > {Z_MAX_LABEL} m "
+            f"(Z = [{z.min():.3f}, {z.max():.3f}] m). Labelling, density "
+            "allocation and further processing may be inaccurate; select the "
+            "surfaces with filter_surfaces_by_range() first.")
+
 def _fit_surface(z, r, order):
     """
     Polynomial fit r(z), with the order reduced when there are too few
@@ -680,6 +703,13 @@ def label_surfaces(flt, limit_error = 0.015,
     ValueError
         If ``limit_error``, ``limit_number``, or ``order`` is not a scalar 
         variable and not >0.
+    
+    Warns
+    -----
+    UserWarning
+        If any point has R < ``R_MIN_LABEL`` (6.1 m) or |Z| >
+        ``Z_MAX_LABEL`` (1.0 m). The labelling still runs, but its accuracy
+        and that of the density allocation is not guaranteed.
     """
     
     _check_surfaces(flt)
@@ -688,6 +718,7 @@ def label_surfaces(flt, limit_error = 0.015,
     _check_scalar("order", order, integer=True, min_value=0)
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
+    _check_label_window(surfs)
     surfaces = list()
     
     for i, surf in enumerate(surfs):
