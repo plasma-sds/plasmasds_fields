@@ -15,8 +15,8 @@ class ProfileInterpolator1D:
         profile : array-like
             The array of profile values corresponding to ``position``.
         """
-        self.original_profile = np.array(profile)
-        self.original_position = np.array(position)
+        self.original_profile = np.array(profile, dtype=float)
+        self.original_position = np.array(position, dtype=float)
 
         self.position = np.copy(self.original_position)
         self.profile = np.copy(self.original_profile)
@@ -25,9 +25,7 @@ class ProfileInterpolator1D:
     def __call__(self, position_values):
         """
         Call the instance directly to interpolate at ``position_values``.
-
-        Equivalent to :meth:`interpolate`, so ``interp(x)`` and
-        ``interp.interpolate(x)`` return the same values.
+        Equivalent to ``interp.interpolator(x)``.
         """
         return self.interpolator(position_values)
 
@@ -66,7 +64,9 @@ class ProfileInterpolator1D:
             Must be a scalar or have the same shape as ``position_value``.
         by_index : bool, default False
             If ``True``, treat ``position_value`` as an index (or array
-            of indices) rather than a position coordinate.
+            of indices) rather than a position coordinate. Indices follow
+            the order of the arrays given at construction, with datapoints
+            from :meth:`add_datapoints` appended at the end.
         """
         position_values = np.atleast_1d(position_value)
         profile_values = np.atleast_1d(profile_value)
@@ -93,8 +93,9 @@ class ProfileInterpolator1D:
         Append new datapoints to ``self.position`` / ``self.profile``.
 
         Both ``position_value`` and ``profile_value`` may be scalars
-        (float or int) or array-likes of matching length. The combined
-        arrays are re-sorted by position and the interpolator is rebuilt.
+        (float or int) or array-likes of matching length. New datapoints are
+        appended at the end, so existing indices are unchanged, and the
+        interpolator is rebuilt.
 
         Note that this expands only the working arrays; the originals
         (``self.original_position`` / ``self.original_profile``) are left
@@ -120,12 +121,8 @@ class ProfileInterpolator1D:
                 f"(got {position_values.shape} and {profile_values.shape})."
             )
 
-        new_position = np.concatenate([self.position, position_values])
-        new_profile = np.concatenate([self.profile, profile_values])
-
-        sorted_indices = np.argsort(new_position)
-        self.position = new_position[sorted_indices]
-        self.profile = new_profile[sorted_indices]
+        self.position = np.concatenate([self.position, position_values])
+        self.profile = np.concatenate([self.profile, profile_values])
 
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
@@ -134,9 +131,8 @@ class ProfileInterpolator1D:
 
         Discards any corrections that have been applied since construction.
         """
-        sorted_indices = np.argsort(self.original_position)
-        self.position = np.copy(self.original_position[sorted_indices])
-        self.profile = np.copy(self.original_profile[sorted_indices])
+        self.position = np.copy(self.original_position)
+        self.profile = np.copy(self.original_profile)
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def show(self, show_original=True, ax=None):
@@ -165,7 +161,8 @@ class ProfileInterpolator1D:
         if created_fig:
             _, ax = plt.subplots()
 
-        ax.plot(self.position, self.profile, '-', label='profile')
+        order = np.argsort(self.position)
+        ax.plot(self.position[order], self.profile[order], '-', label='profile')
         if show_original:
             ax.scatter(
                 self.original_position,
