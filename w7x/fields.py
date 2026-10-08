@@ -21,8 +21,9 @@ def add_density_by_type(flt, density_function):
         ``tools.interpolate.ProfileInterpolator1D`` instance, i.e. pass
         ``profile.interpolator`` rather than the ``ProfileInterpolator1D``
         object itself.
-        --> note that scipy 1D interpolator can only interpolate, and cannot
-        extrapolate.
+        --> note that ``ProfileInterpolator1D`` extrapolates linearly outside
+        its position range, so surfaces outside the profile get extrapolated
+        densities.
 
     Returns
     -------
@@ -49,13 +50,14 @@ def add_density_by_type(flt, density_function):
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     
-    if surfs[0].errors == [None]:
+    if any(s.errors == [None] for s in surfs):
         print("Warning: no classification happened, "
               "necessary data obtained by label_surfaces()")
         surfs = pc.label_surfaces(surfs)
     
     for surf in surfs:
         for i in range(len(surf.errors)):
+            if surf.errors[i] is None: continue    # no points of this type
             dens = density_function(surf.coeffs[i, 2])
             surf.update_density(float(dens), ind=i)
                 
