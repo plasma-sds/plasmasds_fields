@@ -58,7 +58,7 @@ def add_density_by_type(flt, density_function):
     for surf in surfs:
         for i in range(len(surf.errors)):
             if surf.errors[i] is None: continue    # no points of this type
-            dens = density_function(surf.coeffs[i, 2])
+            dens = density_function(surf.coeffs[i, -1])
             surf.update_density(float(dens), ind=i)
                 
     return surfs
@@ -201,7 +201,7 @@ def extract_points(surfaces):
         data["density"] += density.tolist()
         data["point_type"] += surf.points.point_type.tolist()
         
-        data["surface_radius"] += surf.coeffs[:, 2][surf.points.point_type
+        data["surface_radius"] += surf.coeffs[:, -1][surf.points.point_type
                                                     ].tolist()
         
     for key in data.keys():

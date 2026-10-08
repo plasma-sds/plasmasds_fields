@@ -854,7 +854,7 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
         type_to_save = list()
         for i in range(len(surf.errors)):
             if surf.errors[i] != None:
-                R_temp = surf.coeffs[i,2]
+                R_temp = surf.coeffs[i,-1]
                 if R_range is None or (R_range[0] < R_temp < R_range[1]):
                     type_to_save.append(i)
         mask = np.isin(surf.points.point_type, type_to_save)
