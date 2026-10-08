@@ -842,7 +842,7 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
         for i in range(len(surf.errors)):
             if surf.errors[i] != None:
                 R_temp = surf.coeffs[i,2]
-                if (R_temp < R_range[1]) & (R_temp > R_range[0]): 
+                if R_range is None or (R_range[0] < R_temp < R_range[1]):
                     type_to_save.append(i)
         mask = np.isin(surf.points.point_type, type_to_save)
         if np.any(mask):
@@ -865,15 +865,15 @@ def filter_surfaces_by_error(surfaces, error_range=None):
     surfaces : list of FluxSurface or field-line-tracer result
         Source surfaces to filter.
     error_range : sequence of float, optional
-        Two-element ``[start, end]`` slice (Python half-open semantics)
-        applied to the list of surfaces. If ``None`` (default), all
-        surfaces are kept.
+        Two-element ``[min, max]`` interval on the polynomial fit error
+        of each point-type group (exclusive bounds). If ``None``
+        (default), no constraint on the error.
 
     Returns
     -------
     list of FluxSurface
         New :class:`FluxSurface` instances containing only the points
-        that pass both the ``error_range`` filters. 
+        that pass both the ``error_range`` filters.
         Surfaces that end up empty (or that started empty / had ``None``
         coordinates) are omitted from the result.
         
@@ -905,8 +905,8 @@ def filter_surfaces_by_error(surfaces, error_range=None):
         for i in range(len(surf.errors)):
             if surf.errors[i] != None:
                 error_temp = surf.errors[i]
-                if ((error_temp < error_range[1]) & 
-                    (error_temp > error_range[0])): 
+                if (error_range is None or
+                    error_range[0] < error_temp < error_range[1]):
                     type_to_save.append(i)
         mask = np.isin(surf.points.point_type, type_to_save)
         if np.any(mask):
