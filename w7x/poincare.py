@@ -486,10 +486,10 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
     ax.set_xlabel("R [m]")
     ax.set_ylabel("z [m]")
 
-    if isinstance(r_range, list):
+    if r_range is not None:
         ax.set_xlim(r_range)
 
-    if isinstance(z_range, list):
+    if z_range is not None:
         ax.set_ylim(z_range)
 
     if legend:
@@ -1008,10 +1008,10 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
     ax.set_xlabel("R [m]")
     ax.set_ylabel("z [m]")
 
-    if isinstance(r_range, list):
+    if r_range is not None:
         ax.set_xlim(r_range)
 
-    if isinstance(z_range, list):
+    if z_range is not None:
         ax.set_ylim(z_range)
 
     if legend:
