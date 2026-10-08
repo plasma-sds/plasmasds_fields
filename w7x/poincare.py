@@ -608,6 +608,17 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     
     return filtered_surfs
 
+def _fit_surface(z, r, order):
+    """
+    Polynomial fit r(z), with the order reduced when there are too few
+    points (1 point -> constant, 2 points -> line). The coefficients are
+    padded with leading zeros to length order+1. Returns (coeff, error).
+    """
+    deg = min(order, len(z) - 1)
+    coeff = np.polyfit(z, r, deg)
+    error = np.sqrt(np.mean((r - np.polyval(coeff, z))**2))
+    return np.pad(coeff, (order - deg, 0)), error
+
 def label_surfaces(flt, limit_error = 0.015,
                    limit_number = 100, order = 2):
     """
@@ -677,8 +688,7 @@ def label_surfaces(flt, limit_error = 0.015,
     
     for i, surf in enumerate(surfs):
         r, z = surf.points.r, surf.points.z
-        coeff = np.polyfit(z[:], r[:], order)
-        error = np.sqrt(np.mean((r - np.polyval(coeff, z))**2))
+        coeff, error = _fit_surface(z, r, order)
         
         
         # Conditions to differentiate island and not-island surfaces:
@@ -695,13 +705,11 @@ def label_surfaces(flt, limit_error = 0.015,
             
             # Outer side
             surf.update_point_type(1, mask=o)
-            coeff_o = np.polyfit(z[o], r[o], order)
-            error_o = np.sqrt(np.mean((r[o] - np.polyval(coeff_o, z[o]))**2))
+            coeff_o, error_o = _fit_surface(z[o], r[o], order)
             
             # Inner side
             surf.update_point_type(2, mask=i)
-            coeff_i = np.polyfit(z[i], r[i], order)
-            error_i = np.sqrt(np.mean((r[i] - np.polyval(coeff_i, z[i]))**2))
+            coeff_i, error_i = _fit_surface(z[i], r[i], order)
             
             surf.coeffs = np.asarray([np.zeros(order+1), coeff_o, coeff_i])
             surf.errors = [None, error_o, error_i]
