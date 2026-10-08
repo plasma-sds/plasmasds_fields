@@ -109,7 +109,7 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     
-    if all([s.density==[0] for s in surfs]):
+    if all(not any(s.density) for s in surfs):
         raise Exception("No density assignation happened, "
                         "run add_density_by_type()!")
     
@@ -187,7 +187,7 @@ def extract_points(surfaces):
             "r": list(), "z": list(), "density": list(), 
             "point_type": list(), "surface_radius": list()}
     
-    if all([s.density==[0] for s in surfaces]):
+    if all(not any(s.density) for s in surfaces):
         raise Exception("No density assignation happened, "
                         "run add_density_by_type()!")
     

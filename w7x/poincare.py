@@ -195,8 +195,10 @@ class Range(object):
         self.x3Max = max([np.max(surf.points.x3) for surf in flt])
         self.rMin  = min([np.min(surf.points.r ) for surf in flt])
         self.rMax  = max([np.max(surf.points.r ) for surf in flt])
-        self.densityMin  = min([min(surf.density ) for surf in flt])
-        self.densityMax  = max([max(surf.density ) for surf in flt])
+        dens = [d for surf in flt for d, e in zip(surf.density, surf.errors)
+                if e is not None or surf.errors == [None]]
+        self.densityMin  = min(dens)
+        self.densityMax  = max(dens)
         self.zMin  = self.x3Min
         self.zMax  = self.x3Max
         
