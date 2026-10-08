@@ -696,12 +696,12 @@ def label_surfaces(flt, limit_error = 0.015,
             # Outer side
             surf.update_point_type(1, mask=o)
             coeff_o = np.polyfit(z[o], r[o], order)
-            error_o = np.sqrt(np.mean((r - np.polyval(coeff_o, z))**2))
+            error_o = np.sqrt(np.mean((r[o] - np.polyval(coeff_o, z[o]))**2))
             
             # Inner side
             surf.update_point_type(2, mask=i)
             coeff_i = np.polyfit(z[i], r[i], order)
-            error_i = np.sqrt(np.mean((r - np.polyval(coeff_i, z))**2))
+            error_i = np.sqrt(np.mean((r[i] - np.polyval(coeff_i, z[i]))**2))
             
             surf.coeffs = np.asarray([np.zeros(order+1), coeff_o, coeff_i])
             surf.errors = [None, error_o, error_i]
