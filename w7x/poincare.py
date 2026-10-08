@@ -776,7 +776,7 @@ def filter_surfaces_by_type(flt, point_types=None):
     
     for surf in surfs:
         if type(surf.points.x1) != type(None) and surf.n > 0:
-            if point_types is None: np.ones(surf.n, dtype=bool)
+            if point_types is None: mask = np.ones(surf.n, dtype=bool)
             else: mask = np.isin(surf.points.point_type, point_types)
             
             # Only include surface if it has at least one point
