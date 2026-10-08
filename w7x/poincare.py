@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 import xml.etree.ElementTree as ET
 import matplotlib.pyplot as plt
@@ -603,6 +604,7 @@ def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
             # within the ranges
             if np.any(mask):
                 # Filter the points
+                surf = copy.deepcopy(surf)
                 surf.filter_points(mask)
                 filtered_surfs.append(surf)
     
@@ -790,6 +792,7 @@ def filter_surfaces_by_type(flt, point_types=None):
             # Only include surface if it has at least one point
             if np.any(mask):
                 # Filter the points
+                surf = copy.deepcopy(surf)
                 surf.filter_points(mask)
                 filtered_surfs.append(surf)
         
@@ -854,6 +857,7 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
                     type_to_save.append(i)
         mask = np.isin(surf.points.point_type, type_to_save)
         if np.any(mask):
+            surf = copy.deepcopy(surf)
             surf.filter_points(mask)
             filtered_surfs.append(surf)
             
@@ -918,6 +922,7 @@ def filter_surfaces_by_error(surfaces, error_range=None):
                     type_to_save.append(i)
         mask = np.isin(surf.points.point_type, type_to_save)
         if np.any(mask):
+            surf = copy.deepcopy(surf)
             surf.filter_points(mask)
             filtered_surfs.append(surf)
             

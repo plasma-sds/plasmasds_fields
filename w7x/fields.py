@@ -1,3 +1,4 @@
+import copy
 import numpy as np
 from . import poincare as pc
 
@@ -129,6 +130,7 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         # within the ranges
         if np.any(mask):
             # Filter the points
+            surf = copy.deepcopy(surf)
             surf.filter_points(mask)
             filtered_surfs.append(surf)
 
