@@ -15,12 +15,9 @@ def add_density_by_type(flt, density_function):
         Either a list of Surf objects or an object with 
         ``flt.poincare_res.surfs``.
     density_function : callable
-        A scipy 1D interpolator (e.g. ``scipy.interpolate.interp1d``) that
-        returns the density at a given radial position ``R``. Typically this
-        is the ``interpolator`` attribute of a
-        ``tools.interpolate.ProfileInterpolator1D`` instance, i.e. pass
-        ``profile.interpolator`` rather than the ``ProfileInterpolator1D``
-        object itself.
+        Any callable returning the density at a given radial position ``R``,
+        e.g. a ``tools.interpolate.ProfileInterpolator1D`` instance (pass the
+        object itself) or a ``scipy.interpolate.interp1d`` interpolator.
         --> note that ``ProfileInterpolator1D`` extrapolates linearly outside
         its position range, so surfaces outside the profile get extrapolated
         densities.
