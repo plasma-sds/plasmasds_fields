@@ -1,5 +1,5 @@
 import numpy as np
-import poincare as pc
+from . import poincare as pc
 
 def add_density_by_type(flt, density_function):
     """
