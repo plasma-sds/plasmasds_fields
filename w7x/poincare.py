@@ -86,8 +86,6 @@ class FluxSurface(object):
         side.
     density : float, default 0
         Initial density of the surface [m^-3].
-    surf_type : str, default "default"
-        Currently not used.
 
     Attributes
     ----------
@@ -108,7 +106,7 @@ class FluxSurface(object):
     """
 
     def __init__(self, x1, x2, x3, phi0, 
-                 point_type=0, density=0, surf_type="default"):
+                 point_type=0, density=0):
         self.points = Points(x1, x2, x3, 
                              point_type=point_type)
         self.phi0 = phi0
