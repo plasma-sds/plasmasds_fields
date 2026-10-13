@@ -1,49 +1,52 @@
+"""
+Density allocation on W7-X flux surfaces and conversion of the surface
+points to scattered and regular 2-D density fields.
+"""
 import copy
 import numpy as np
 from . import poincare as pc
 
 def add_density(flt, density_function, keep_unusable=False):
     """
-    Assign a density to each surface based on the type of the surface
-    points, obtained prior (for example by polinom fit), and keep only the
-    surfaces and points with a usable (positive) density.
-    
-    If the type is not defined prior, then polinom fit executed automatically.
+    Assign densities to the surfaces from a radial profile.
+
+    Each point-type group of a surface gets the density of the profile at the
+    group's radius, the R of its polynomial fit at Z = 0 (see
+    :func:`w7x.poincare.label_surfaces`). Unlabelled surfaces are labelled
+    first. Point groups without a usable density are then removed, so the
+    result can be passed directly to :func:`extract_points`.
 
     Parameters
     ----------
-    flt : list or object
-        Either a list of Surf objects or an object with 
-        ``flt.poincare_res.surfs``.
+    flt : list of FluxSurface or field-line-tracer result
+        Either a list of :class:`~w7x.poincare.FluxSurface` instances or an
+        object exposing ``poincare_res.surfs``.
     density_function : callable
-        Any callable returning the density at a given radial position ``R``,
-        e.g. a ``tools.interpolate.ProfileInterpolator1D`` instance (pass the
-        object itself) or a ``scipy.interpolate.interp1d`` interpolator.
-        --> note that ``ProfileInterpolator1D`` extrapolates linearly outside
-        its position range, so surfaces outside the profile get extrapolated
+        Returns the density [m^-3] at a radius R [m], e.g. a
+        :class:`tools.interpolate.ProfileInterpolator1D` instance (pass the
+        object itself) or a ``scipy.interpolate.interp1d`` interpolator. Note
+        that ``ProfileInterpolator1D`` extrapolates linearly outside its
+        position range, so surfaces outside the profile get extrapolated
         densities.
     keep_unusable : bool, default False
-        If ``False`` (default), point groups whose assigned density is not
-        positive (zero, negative or NaN) are removed, and surfaces left
-        without points are dropped. If ``True``, all surfaces and points are
-        returned, with only the densities assigned.
+        If False, point groups whose density is not positive (zero, negative or
+        NaN) are removed, and surfaces left without points are dropped. If
+        True, all surfaces and points are returned, with only the densities
+        assigned.
 
     Returns
     -------
-    list
+    list of FluxSurface
         The surfaces with assigned densities. The densities are written onto
         the input surfaces; surfaces that lose points are copied before
         trimming, so the input list keeps all its points.
-    
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
-    ValueError
-        If ``density_function`` is not a callable.
+        If ``flt`` is neither a list of FluxSurface instances nor an object
+        exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
+        or if ``density_function`` is not callable.
     """
     
     pc._check_surfaces(flt)
@@ -89,39 +92,38 @@ def add_density(flt, density_function, keep_unusable=False):
 
 def filter_surfaces_by_density(flt, density_range=None):
     """
-    Filter list of FluxSurface objects by their assigned density.
+    Filter flux surfaces and their points by their assigned density.
 
     Keeps only the points whose point-type group has a density within
-    ``density_range``; surfaces left without points are dropped. Surfaces
-    and points without a usable density are already removed by
-    :func:`add_density`.
+    ``density_range``; surfaces left without points are dropped. Points without
+    a usable density are already removed by :func:`add_density`.
 
     Parameters
     ----------
     flt : list of FluxSurface or field-line-tracer result
-        Either a list of :class:`FluxSurface` instances or an object
-        exposing ``flt.poincare_res.surfs``.
-    density_range : sequence of float, optional
-        Two-element ``[lower, upper]`` interval (inclusive) on the density
-        of each point-type group. If ``None`` (default), all surfaces are
-        kept.
+        Surfaces with assigned densities (see :func:`add_density`).
+    density_range : sequence of float, default None
+        Two-element ``[min, max]`` interval (inclusive) on the density of each
+        point-type group [m^-3]. If None, all surfaces are kept.
 
     Returns
     -------
     list of FluxSurface
-        Copies of the surfaces that pass the filter, containing only the
-        points within ``density_range``.
-    
+        Copies of the surfaces that keep at least one point, containing only
+        the points within ``density_range``. The input surfaces are not
+        modified.
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``flt`` is neither a list of FluxSurface instances nor an object
+        exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
+        or if ``density_range`` has non-numeric elements.
     ValueError
-        If ``density_range`` is not two-element sequence, if its start is
-        not strictly less than its end.
+        If ``density_range`` is not a two-element sequence with start < end, or
+        if it contains negative values.
+    Exception
+        If no density has been assigned (see :func:`add_density`).
     """
     
     pc._check_surfaces(flt)
@@ -130,7 +132,7 @@ def filter_surfaces_by_density(flt, density_range=None):
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     
     if all(not any(s.density) for s in surfs):
-        raise Exception("No density assignation happened, "
+        raise Exception("No density assignment happened, "
                         "run add_density()!")
     
     filtered_surfs = list()
@@ -161,45 +163,35 @@ def filter_surfaces_by_density(flt, density_range=None):
 
 def extract_points(surfaces):
     """
-    Flatten all surfaces' points and their properties into arrays, stored
-    in a dictionary.
-
-    Iterates over every surface and every point on each surface.
+    Flatten the points of all surfaces and their properties into 1-D arrays.
 
     Parameters
     ----------
-    surfaces : list of FluxSurface or field-line-tracer result
-        Either a list of :class:`FluxSurface` instances or an object
-        exposing ``flt.poincare_res.surfs``.
+    surfaces : list of FluxSurface
+        Surfaces with assigned densities (see :func:`add_density`).
 
     Returns
     -------
-    data : dictionary with the following keys:
-        "x1" : ndarray of shape (N,)
-            x1 coordinates of all the points in the list of surfaces.
-        "x2" : ndarray of shape (N,)
-            x2 coordinates of all the points in the list of surfaces.
-        "x3" : ndarray of shape (N,)
-            x3 coordinates of all the points in the list of surfaces.
-        "r" : ndarray of shape (N,)
-            r radial position of all the points in the list of surfaces.
-        "z" : ndarray of shape (N,)
-            z vertical position of all the points in the list of surfaces.
-        "density" : ndarray of shape (N,)
-            density of all the points in the list of surfaces.
-        "point_type" : ndarray of shape (N,)
-            the type of all the points in the list of surfaces, related to
-            island trajectories.
-        "surface_radius" : ndarray of shape (N,)
-            The radial position of the surface (or part of it).
-    
+    dict of numpy.ndarray
+        Arrays of shape ``(N,)``, one entry per point of all surfaces:
+
+        * ``"x1"``, ``"x2"``, ``"x3"``: point coordinates [m].
+        * ``"r"``: cylindrical radius [m].
+        * ``"z"``: vertical position [m].
+        * ``"density"``: density of the point's point-type group [m^-3].
+        * ``"point_type"``: point type (0 non-island, 1 island outer side, 2
+          island inner side).
+        * ``"surface_radius"``: radius of the point's point-type group, the R
+          of its fit at Z = 0 [m].
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``surfaces`` is neither a list of FluxSurface instances nor an
+        object exposing ``poincare_res.surfs``, or if an element is not a
+        FluxSurface.
+    Exception
+        If no density has been assigned (see :func:`add_density`).
     """
     
     pc._check_surfaces(surfaces)
@@ -209,7 +201,7 @@ def extract_points(surfaces):
             "point_type": list(), "surface_radius": list()}
     
     if all(not any(s.density) for s in surfaces):
-        raise Exception("No density assignation happened, "
+        raise Exception("No density assignment happened, "
                         "run add_density()!")
     
     for surf in surfaces:
@@ -237,63 +229,54 @@ def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005,
     """
     Interpolate scattered ``(r, z, density)`` data onto a regular grid.
 
-    Builds 1-D ``R`` and ``Z`` coordinate axes spanning the data extent
-    (or the user-supplied ``r_limits`` / ``z_limits``) with spacings
-    ``dr`` and ``dz``, then uses :func:`scipy.interpolate.griddata` to
-    evaluate the density on the resulting 2-D grid. Points outside the
-    convex hull of the input scatter are optionally filled in with a
-    nearest-neighbour interpolation. Finally, the whole field is
-    clamped from below by ``bottom_value`` (so any remaining NaNs and
-    any values smaller than the floor are replaced with
-    ``bottom_value``).
+    Builds R and Z axes spanning the data (or ``r_limits`` / ``z_limits``) with
+    spacings ``dr`` and ``dz``, and evaluates the density on the grid with
+    :func:`scipy.interpolate.griddata`. Grid points outside the convex hull of
+    the data are optionally filled by nearest-neighbour interpolation. Finally
+    the field is clamped from below by ``bottom_value``, which also replaces
+    any remaining NaNs.
 
     Parameters
     ----------
     r, z, density : array_like, shape (N,)
-        Scattered input data: cylindrical R coordinates, vertical Z
-        coordinates, and density values at each ``(r, z)`` point.
+        Scattered data: cylindrical radius [m], vertical position [m] and
+        density [m^-3] of each point, e.g. from :func:`extract_points`.
     dr, dz : float, default 0.0005
-        Grid spacings along R and Z respectively.
-    bottom_value : float, default 1e17
-        Floor density. The output field is clamped so that no value is
-        below ``bottom_value``; any NaNs are also replaced with this
-        value.
-    r_limits, z_limits : sequence of float, optional
-        Two-element ``[min, max]`` bounds for the regular grid. If
-        ``None`` (default), the data ``min``/``max`` is used for that
-        axis.
+        Grid spacing along R and Z [m].
+    bottom_value : float, default 1e16
+        Floor density [m^-3]. No grid value is below it, and NaNs are replaced
+        with it.
+    r_limits, z_limits : sequence of float, default None
+        Two-element ``[min, max]`` grid bounds [m]. If None, the data extent is
+        used for that axis.
     method : str, default "linear"
         Interpolation method passed to :func:`scipy.interpolate.griddata`
-        for the primary pass (``"linear"``, ``"cubic"``, or
-        ``"nearest"``).
+        (``"linear"``, ``"cubic"`` or ``"nearest"``).
     fill_with_nearest : bool, default True
-        If ``True``, points returning NaN from the primary
-        interpolation (typically outside the convex hull of the input
-        scatter) are filled with a separate ``"nearest"`` pass before
-        the bottom-value clamp is applied.
+        If True, grid points left NaN by the interpolation (typically outside
+        the convex hull of the data) are filled by a nearest-neighbour pass
+        before the floor is applied.
 
     Returns
     -------
-    R_axis : ndarray of shape (nR,)
-        1-D array of R grid coordinates.
-    Z_axis : ndarray of shape (nZ,)
-        1-D array of Z grid coordinates.
-    density_grid : ndarray of shape (nZ, nR)
-        2-D density field on ``np.meshgrid(R_axis, Z_axis)``, with
-        ``density_grid[i, j]`` corresponding to ``(R_axis[j], Z_axis[i])``.
-    
+    R_axis : numpy.ndarray, shape (NR,)
+        R coordinates of the grid [m].
+    Z_axis : numpy.ndarray, shape (NZ,)
+        Z coordinates of the grid [m].
+    density_grid : numpy.ndarray, shape (NZ, NR)
+        Density on the grid [m^-3], with ``density_grid[i, j]`` at
+        ``(R_axis[j], Z_axis[i])`` (the layout used by
+        ``matplotlib.pyplot.contourf``).
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``r`` or ``z`` is not a sequence of numbers, if ``dr``, ``dz`` or
+        ``bottom_value`` is not numeric, or if a limit has non-numeric
+        elements.
     ValueError
-        If ``r_limits`` or ``z_limits`` is not two-element sequence, 
-        if its start is not strictly less than its end.
-        If ``r`` or ``z`` are not sqeuence of numbers, 
-        if ``dr``, ``dz`` or ``bottom_value`` are not positive scalars.
+        If ``dr``, ``dz`` or ``bottom_value`` is negative, or if ``r_limits``
+        or ``z_limits`` is not a two-element sequence with start < end.
     """
     
     pc._check_sequence("r", r)
