@@ -136,7 +136,7 @@ def perturbation_gaussian(R, Z, field,
                                    (R <= posR + effR))[0]
                 G_ind_z = np.where((Z >= posZ - effZ) &
                                    (Z <= posZ + effZ))[0]
-                GR, GZ = np.meshgrid(R[G_ind_r], Z[G_ind_z])
+                GR, GZ = np.meshgrid(R[G_ind_r], Z[G_ind_z], indexing="ij")
                 G_field = gaussian_2d(GR, GZ, r0 = posR, z0 = posZ,
                                           sigma_r = sigR, sigma_z = sigZ,
                                           A = ampl)
