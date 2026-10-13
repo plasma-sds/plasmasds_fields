@@ -7,6 +7,22 @@ Created on Thu Jun 11 20:28:31 2026
 import numpy as np
 import h5py
 
+def _field_rz(R, Z, field):
+    """
+    Return ``field`` in (NR, NZ) layout. Accepts (NR, NZ), and (NZ, NR) as
+    produced by w7x.fields.make_regular_density_field or HESEL snapshots.
+    A square field (NR == NZ) is taken as (NR, NZ).
+    """
+    field = np.asarray(field)
+    if field.shape == (len(R), len(Z)):
+        return field
+    if field.shape == (len(Z), len(R)):
+        return field.T
+    raise ValueError(
+        f"field shape {field.shape} does not match R ({len(R)}) and "
+        f"Z ({len(Z)}); expected ({len(R)}, {len(Z)}) or "
+        f"({len(Z)}, {len(R)}).")
+
 def perturbation_gaussian(R, Z, field, 
                           dt, r_trajectory , z_trajectory , 
                           perturbation_fwhm, perturbation_ampl,
@@ -23,9 +39,10 @@ def perturbation_gaussian(R, Z, field,
         1D array of R-coordinates of the spatial grid [m].
     Z : numpy.ndarray, shape (NZ,)
         1D array of Z-coordinates of the spatial grid [m].
-    field : numpy.ndarray, shape (NR, NZ)
-        2D background density field [m^-3] onto which filament
-        contributions are added at each time step.
+    field : numpy.ndarray, shape (NR, NZ) or (NZ, NR)
+        2D background density field [m^-3]. The (NZ, NR) layout of
+        w7x.fields.make_regular_density_field is transposed automatically;
+        a square field is taken as (NR, NZ).
     dt : float
         Time step of the simulation.
     r_trajectory : list of array-like, length n_filaments
@@ -78,6 +95,7 @@ def perturbation_gaussian(R, Z, field,
 
         Returns None if return_array=False.
     """
+    field = _field_rz(R, Z, field)
     t = np.arange(len(r_trajectory[0])) * dt
     
     if not isinstance(file, type(None)):
@@ -157,9 +175,10 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
         1D array of R-coordinates of the spatial grid [m].
     Z : numpy.ndarray, shape (NZ,)
         1D array of Z-coordinates of the spatial grid [m].
-    field : numpy.ndarray, shape (NR, NZ)
-        2D background density field [m^-3] onto which filament
-        contributions are added at each time step.
+    field : numpy.ndarray, shape (NR, NZ) or (NZ, NR)
+        2D background density field [m^-3]. The (NZ, NR) layout of
+        w7x.fields.make_regular_density_field is transposed automatically;
+        a square field is taken as (NR, NZ).
     dt : float
         Time step of the simulation.
     nt : integer
@@ -199,6 +218,7 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
 
     """
     
+    field = _field_rz(R, Z, field)
     t = np.arange(nt) * dt
     
     if not isinstance(file, type(None)):
