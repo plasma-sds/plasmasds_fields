@@ -167,8 +167,9 @@ def extract_points(surfaces):
 
     Parameters
     ----------
-    surfaces : list of FluxSurface
-        Surfaces with assigned densities (see :func:`add_density`).
+    surfaces : list of FluxSurface or field-line-tracer result
+        Surfaces with assigned densities (see :func:`add_density`), as a
+        list or an object exposing ``poincare_res.surfs``.
 
     Returns
     -------
@@ -195,16 +196,18 @@ def extract_points(surfaces):
     """
     
     pc._check_surfaces(surfaces)
+    surfs = (surfaces if isinstance(surfaces, list)
+             else surfaces.poincare_res.surfs)
     
     data = {"x1": list(), "x2": list(), "x3": list(), 
             "r": list(), "z": list(), "density": list(), 
             "point_type": list(), "surface_radius": list()}
     
-    if all(not any(s.density) for s in surfaces):
+    if all(not any(s.density) for s in surfs):
         raise Exception("No density assignment happened, "
                         "run add_density()!")
     
-    for surf in surfaces:
+    for surf in surfs:
         data["x1"] += surf.points.x1.tolist()
         data["x2"] += surf.points.x2.tolist()
         data["x3"] += surf.points.x3.tolist()
