@@ -1,3 +1,7 @@
+"""
+W7-X Poincaré flux surfaces: loading, filtering, labelling and plotting of
+field-line tracer results.
+"""
 import copy
 import warnings
 import numpy as np
@@ -6,33 +10,33 @@ import matplotlib.pyplot as plt
 
 class Points(object):
     """
-    Container for a set of 3D points stored as three coordinate arrays.
+    Set of 3-D points stored as coordinate arrays.
 
-    The coordinates ``x1``, ``x2`` and ``x3`` are stored as NumPy arrays of
-    equal length, where the i-th point is given by
-    ``(x1[i], x2[i], x3[i])``.
-    Further arrays store the radial position 'r', the vertical position 'z',
-    the density 'd' and the type of the point 'point_type'. 
-    
-    r = sqrt(x1^2 + x2^2)
-    z = x3
-    The type of the point can be three values:
-        - self.point_type = 0 -> not island point
-        - self.point_type = 1 -> island point at outer surface
-        - self.point_type = 2 -> island point at inner surface
+    The i-th point is ``(x1[i], x2[i], x3[i])``. The cylindrical radius ``r =
+    sqrt(x1**2 + x2**2)`` and the vertical position ``z = x3`` are derived on
+    construction.
+
+    Parameters
+    ----------
+    x1, x2, x3 : array_like
+        First, second and third coordinate of each point [m], of equal length.
+    point_type : int or array_like, default 0
+        Type of each point: 0 non-island, 1 island outer side, 2 island inner
+        side.
+
+    Attributes
+    ----------
+    x1, x2, x3 : numpy.ndarray
+        Point coordinates [m].
+    r : numpy.ndarray
+        Cylindrical radius of each point [m].
+    z : numpy.ndarray
+        Vertical position of each point [m].
+    point_type : numpy.ndarray of uint8
+        Type of each point (see ``point_type`` above).
     """
 
     def __init__(self, x1, x2, x3, point_type=0):
-        """
-        Initialize a ``Points`` instance from three coordinate sequences.
-
-        Parameters
-        ----------
-        x1, x2, x3: array_like
-            Sequences (or arrays) of equal length holding the first, second
-            and third coordinate of each point. They are converted to
-            ``numpy.ndarray`` on assignment.
-        """
         n = len(x1)
         self.x1 = np.array(x1)                      # first coordinate
         self.x2 = np.array(x2)                      # second coordinate
@@ -45,21 +49,20 @@ class Points(object):
 
     def __array__(self, dtype=None):
         """
-        NumPy array protocol: return the points as a stacked array.
+        Return the points as a stacked ``(3, N)`` array (NumPy array protocol).
 
         Allows the object to be used directly with ``np.asarray`` /
         ``np.array``.
 
         Parameters
         ----------
-        dtype : data-type, optional
+        dtype : data-type, default None
             If given, the returned array is cast to this dtype.
 
         Returns
         -------
         numpy.ndarray
-            Array of shape ``(3, N)`` whose rows are ``x1``, ``x2`` and
-            ``x3`` respectively.
+            Array of shape ``(3, N)`` whose rows are ``x1``, ``x2`` and ``x3``.
         """
         
         arr = np.array([self.x1, self.x2, self.x3])
@@ -70,48 +73,42 @@ class Points(object):
 
 class FluxSurface(object):
     """
-    Representation of a single magnetic flux surface.
+    Single magnetic flux surface, sampled as points in a poloidal plane.
 
-    A flux surface is described by a cloud of points (stored in
-    :class:`Points`), the toroidal reference angle ``phi0`` at which the
-    surface was sampled, and optional plasma density attributes used by
-    downstream models.
+    Parameters
+    ----------
+    x1, x2, x3 : array_like
+        Coordinates of the points on the surface [m].
+    phi0 : float
+        Toroidal angle at which the surface was sampled [rad].
+    point_type : int or array_like, default 0
+        Type of each point: 0 non-island, 1 island outer side, 2 island inner
+        side.
+    density : float, default 0
+        Initial density of the surface [m^-3].
+    surf_type : str, default "default"
+        Currently not used.
+
+    Attributes
+    ----------
+    points : Points
+        The points of the surface.
+    phi0 : float
+        Toroidal angle of the poloidal plane [rad].
+    n : int
+        Number of points.
+    coeffs : list or numpy.ndarray
+        Polynomial fit coefficients of R(Z), one row per point type, set by
+        :func:`label_surfaces` (``[None]`` before labelling).
+    errors : list
+        RMS fit error per point type [m], None for point types without points
+        (``[None]`` before labelling).
+    density : list of float
+        Density per point type [m^-3], set by :func:`w7x.fields.add_density`.
     """
 
     def __init__(self, x1, x2, x3, phi0, 
                  point_type=0, density=0, surf_type="default"):
-        """
-        Initialize a flux surface.
-
-        Parameters
-        ----------
-        x1, x2, x3 : array_like
-            Coordinate sequences describing the points on the surface.
-        phi0 : float
-            Reference toroidal angle (in radians) at which the surface was
-            sampled.
-        density : float or array_like, optional
-            Bulk plasma density or density distribution associated 
-            with the surface. Defaults to 0.
-        point_type : float or array_like, optional
-            The type of the points on the surface. 
-            Can be three values:
-                - self.point_type = 0 -> not island point
-                - self.point_type = 1 -> island point at outer surface
-                - self.point_type = 2 -> island point at inner surface
-            Defaults to 0.
-            
-        Further attributes:
-        n : integer
-            number of points in the self.points arrays
-        coeffs : list
-            list of coefficient for each 'point_type' group
-        errors : list
-            list of coefficient for each 'point_type' group
-        density : list
-            list of density values for each 'point_type' group
-        """
-        
         self.points = Points(x1, x2, x3, 
                              point_type=point_type)
         self.phi0 = phi0
@@ -122,29 +119,29 @@ class FluxSurface(object):
 
     def update_density(self, value, ind=None):
         """
-        Update the density of the surface.
+        Set the density of one point-type group or of all groups.
 
         Parameters
         ----------
-        value : float or array
-            New bulk density value or density distribution.
-        ind : integer
-            The index of a 'point_type' group
+        value : float
+            New density [m^-3].
+        ind : int, default None
+            Index of the point-type group to update. If None, all groups are
+            set to ``value``.
         """
         if ind != None: self.density[ind] = value
         else: self.density = [value for i in range(len(self.density))]
         
     def update_point_type(self, value, mask=None):
         """
-        Update the type of the surface or points.
+        Set the point type of all points or of the masked points.
 
         Parameters
         ----------
-        value : float or array
-            New point type value for all points or each points separately.
-        mask : array, optional
-            If given, overwrite only the type values where the mask has 
-            'True' value.
+        value : int or array_like
+            New point type(s).
+        mask : array_like of bool, default None
+            If given, only the points where ``mask`` is True are updated.
         """
         
         if mask is None: self.points.point_type[:] = value
@@ -152,42 +149,42 @@ class FluxSurface(object):
         
     def filter_points(self, mask):
         """
-        Filter the points based on mask array. 
+        Keep only the points where ``mask`` is True (in place).
 
         Parameters
         ----------
-        mask : array
-            Remove point elements where the mask has 'False' value.
+        mask : array_like of bool
+            Points to keep.
         """
         
         for attr, value in vars(self.points).items():
             if isinstance(value, np.ndarray):
-                # print(attr)
                 setattr(self.points, attr, value[mask])
         self.n = sum(mask)
 
 class Range(object):
-    """ 
-    Used to extract the range of different data types in a list of FluxSurface
-    objects or FluxSurface.Points objects:
-        x1, x2, x3, r, z, density
-        
-        Attributes can give back the individual boundaries, or the list object
-        of the range.
+    """
+    Extent of the coordinates and densities of a list of flux surfaces.
+
+    Parameters
+    ----------
+    flt : list of FluxSurface
+        Surfaces to evaluate.
+
+    Attributes
+    ----------
+    x1Min, x1Max, x2Min, x2Max, x3Min, x3Max : float
+        Extent of the point coordinates [m].
+    rMin, rMax, zMin, zMax : float
+        Extent of the cylindrical radius and the vertical position [m].
+    densityMin, densityMax : float
+        Extent of the densities of the point-type groups that contain points
+        [m^-3].
+    x1, x2, x3, r, z, density : list of float
+        The same extents as ``[min, max]`` pairs.
     """
     
     def __init__(self, flt):
-        """
-        By creating the Range object, the attributes calculated automatically
-        during the initialisation.
-
-        Parameters
-        ----------
-        flt : list of FluxSurface objects
-            Filtered list of FluxSurface objects.
-
-        """
-        
         self.x1Min = min([np.min(surf.points.x1) for surf in flt])
         self.x1Max = max([np.max(surf.points.x1) for surf in flt])
         self.x2Min = min([np.min(surf.points.x2) for surf in flt])
@@ -234,7 +231,7 @@ def load_w7x_flux_surfaces(filename):
     """
     
     tree = ET.parse(filename)
-    root = tree.getroot()  # {fltracer.gsoap.boz.hgw.ipp.mpg.de}Result {}
+    root = tree.getroot()  # field-line tracer <Result> element
     surfaces = list()
 
     for surf in root:
@@ -260,7 +257,7 @@ def load_w7x_flux_surfaces(filename):
 
 def _check_surfaces(flt):
     """
-    Validate and extract the list of FluxSurface instances from flt.
+    Raise TypeError unless ``flt`` holds a list of FluxSurface instances.
     """
     
     if isinstance(flt, list): surfs = flt
@@ -285,7 +282,9 @@ def _check_surfaces(flt):
 def _check_scalar(name, value, integer=False, min_value=None, max_value=None,
                   inclusive_min=True, inclusive_max=True, domain=None):
     """
-    Validate a single scalar argument.
+    Validate the type, allowed values and bounds of a scalar argument.
+
+    None is accepted and skips all checks.
     """
     
     if value is None: return
@@ -321,7 +320,9 @@ def _check_scalar(name, value, integer=False, min_value=None, max_value=None,
                 f"{name} must be {op} {max_value}, got {value!r}.")
 
 def _check_range(name, value, integer=False, allow_negative=True):
-    """Validate a [start, end] range argument."""
+    """
+    Validate an optional two-element ``[start, end]`` range argument.
+    """
     if value is None: return
 
     if not isinstance(value, (list, tuple, np.ndarray)) or len(value) != 2:
@@ -395,16 +396,16 @@ def box_plot_coordinates(r_min, z_min, r_max, z_max):
     """
     Build the polyline coordinates of an axis-aligned rectangle.
 
-    The returned arrays describe the four corners of the rectangle in the
-    (R, z) plane, closed back to the starting point so that
-    ``ax.plot(r, z)`` draws a complete outline.
+    The returned arrays describe the four corners of the rectangle in the (R,
+    Z) plane, closed back to the starting point so that ``ax.plot(r, z)`` draws
+    a complete outline.
 
     Parameters
     ----------
     r_min, z_min : float
-        Lower-left corner of the box.
+        Lower-left corner of the box [m].
     r_max, z_max : float
-        Upper-right corner of the box.
+        Upper-right corner of the box [m].
 
     Returns
     -------
@@ -423,45 +424,41 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
                            boxes=None, aspect=False, 
                            save_image=False, legend=False):
     """
-    Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
+    Plot a Poincaré section of W7-X flux surfaces in the (R, Z) plane.
 
     Parameters
     ----------
     surfaces : list of FluxSurface or field-line-tracer result
         Either a list of :class:`FluxSurface` instances (as returned by
-        :func:`load_w7x_flux_surfaces`) or a field-line-tracer result
-        object exposing ``poincare_res.surfs``.
-    magnetic_conf : str, optional
-        Name of the applied magnetic configuration, used in the title.
-    r_range, z_range : list of float, optional
-        Two-element ``[min, max]`` lists used to set the R and z axis
-        limits. If ``None`` (default), matplotlib chooses automatically.
-    s_range : optional
-        Reserved for future use.
-    phi : float, optional
-        Toroidal angle (in radians) at which the Poincaré section was
-        generated. Used in the title.
-    boxes : iterable of 4-tuples, optional
-        Box coordinates ``(x0, y0, x1, y1)`` to be overlaid on the plot.
-    aspect : bool, optional
-        If ``True``, use an equal aspect ratio. Otherwise, use the
-        matplotlib default.
-    save_image : bool or str, optional
-        If ``False`` (default), the figure is not saved to disk. Otherwise
-        the value is interpreted as the destination filename and the
-        figure is written as a PNG (a ``.png`` extension is appended if
-        missing).
-            
+        :func:`load_w7x_flux_surfaces`) or a field-line-tracer result object
+        exposing ``poincare_res.surfs``.
+    magnetic_conf : str, default ''
+        Name of the magnetic configuration, used in the title.
+    r_range, z_range : sequence of float, default None
+        Two-element ``[min, max]`` axis limits [m]. If None, matplotlib chooses
+        the limits.
+    phi : float, default nan
+        Toroidal angle of the Poincaré section [rad], used in the title.
+    boxes : iterable of 4-tuples, default None
+        Boxes ``(r_min, z_min, r_max, z_max)`` [m] to overlay on the plot.
+    aspect : bool, default False
+        If True, use an equal aspect ratio.
+    save_image : bool or str, default False
+        If False, the figure is not saved. Otherwise the value is the
+        destination filename and the figure is written as a PNG (``.png`` is
+        appended if missing).
+    legend : bool, default False
+        If True, show a legend with one entry per surface.
+
     Raises
     ------
     TypeError
-        If ``surfaces`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``surfaces`` is neither a list of FluxSurface instances nor an
+        object exposing ``poincare_res.surfs``, or if an element is not a
+        FluxSurface, or if a range has non-numeric elements.
     ValueError
-        If ``r_range``, or ``z_range`` is not a two-element
-        sequence, if its start is not strictly less than its end.
+        If ``r_range`` or ``z_range`` is not a two-element sequence with
+        start < end.
     """
     
     _check_surfaces(surfaces)
@@ -516,51 +513,46 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
 
 def filter_surfaces_by_range(flt, surf_range=None, r_range=None, z_range=None):
     """
-    Filter flux surfaces and their points by surface index and (R, z) range.
+    Filter flux surfaces and their points by surface index and (R, Z) range.
 
-    The input may be either a list of :class:`FluxSurface` instances (as
-    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
-    result object exposing ``poincare_res.surfs``. The function first
-    selects a contiguous slice of surfaces (``surf_range``), then for each
-    remaining surface keeps only the points whose cylindrical
-    ``R = sqrt(x1**2 + x2**2)`` and ``z = x3`` fall within the supplied
-    ranges. Surfaces left with no points are dropped.
+    The function first selects a contiguous slice of surfaces (``surf_range``),
+    then keeps only the points of each remaining surface whose cylindrical
+    radius ``R = sqrt(x1**2 + x2**2)`` and vertical position ``Z = x3`` lie
+    within the ranges. Surfaces left without points are dropped.
 
     Parameters
     ----------
     flt : list of FluxSurface or field-line-tracer result
-        Source surfaces to filter.
-    surf_range : sequence of int, optional
-        Two-element ``[start, end]`` slice (Python half-open semantics)
-        applied to the list of surfaces before point filtering. Bounds
-        are clamped to the valid range. If ``None`` (default), all
-        surfaces are kept.
-    r_range : sequence of float, optional
-        Two-element ``[min, max]`` interval (in metres) on the major
-        radius ``R``. If ``None`` (default), no constraint on ``R``.
-    z_range : sequence of float, optional
-        Two-element ``[min, max]`` interval (in metres) on the vertical
-        coordinate ``z``. If ``None`` (default), no constraint on ``z``.
+        Either a list of :class:`FluxSurface` instances (as returned by
+        :func:`load_w7x_flux_surfaces`) or a field-line-tracer result object
+        exposing ``poincare_res.surfs``.
+    surf_range : sequence of int, default None
+        Two-element ``[start, end]`` slice (Python half-open semantics) of the
+        surface list, applied before the point filtering. Bounds are clipped to
+        the valid range. If None, all surfaces are kept.
+    r_range : sequence of float, default None
+        Two-element ``[min, max]`` interval (inclusive) on R [m]. If None, no
+        constraint on R.
+    z_range : sequence of float, default None
+        Two-element ``[min, max]`` interval (inclusive) on Z [m]. If None, no
+        constraint on Z.
 
     Returns
     -------
     list of FluxSurface
-        New :class:`FluxSurface` instances containing only the points
-        that pass both the ``R`` and ``z`` filters. 
-        Surfaces that end up empty (or that started empty / had ``None``
-        coordinates) are omitted from the result.
-        
+        Copies of the surfaces that keep at least one point, containing only
+        the points within the ranges. The input surfaces are not modified.
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``flt`` is neither a list of FluxSurface instances nor an object
+        exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
+        or if a range has non-numeric (``surf_range``: non-integer) elements.
     ValueError
-        If ``surf_range``, ``r_range``, or ``z_range`` is not a two-element
-        sequence, if its start is not strictly less than its end, or if
-        ``surf_range`` contains negative indices.
+        If ``surf_range``, ``r_range`` or ``z_range`` is not a two-element
+        sequence with start < end, or if ``surf_range`` contains negative
+        indices.
     """
     
     # --- validate range arguments ---
@@ -649,67 +641,54 @@ def _fit_surface(z, r, order):
 def label_surfaces(flt, limit_error = 0.015,
                    limit_number = 100, order = 2):
     """
-    Filter flux surfaces and their points by polyfit. Used to differentiate
-    island flux surfaces. The method includes a polinom fit (ideally second
-    order), which error can indicate the flux surface relevance. The 0 order
-    coefficient can be also used to estimate the radial position of the 
-    flux surface.
-    
-    
-    Based on the polinom fit each points in a Flux Surface object
-    are sorted into group of 'point_type':
-        - surf.points.point_type[i] = 0 -> not island point
-        - surf.points.point_type[i] = 1 -> island point at outer surface
-        - surf.points.point_type[i] = 2 -> island point at inner surface
-    Each group has a polinom fit function. The coefficient arrays and errors 
-    related to every 'point_type' groups are added to a list (surf.coeffs 
-    and surf.errors). Therefore these lists contain three element, one for 
-    each 'point_type' group. If there is no point with a certain point_type
-    in the surf object and no polinom fit is possible, a 'None' element
-    is added to the list.
+    Label surface points as non-island or island (outer or inner side).
+
+    Each surface is fitted with a polynomial R(Z). A surface counts as an
+    island if the fit error exceeds ``limit_error`` or if it has more than
+    ``limit_number`` points. Island points are split into an outer side (point
+    type 1) and an inner side (point type 2), each with its own fit; points at
+    the island tips are assigned to the side whose fit is closer. Points of
+    non-island surfaces get point type 0.
+
+    The fit results are stored per point type on each surface: ``coeffs`` (one
+    coefficient row per type, highest power first, so the last coefficient is R
+    at Z = 0) and ``errors`` (RMS fit error [m], None for point types without
+    points). The densities are reset to ``[0, 0, 0]``. The surfaces are
+    labelled in place.
 
     Parameters
     ----------
     flt : list of FluxSurface or field-line-tracer result
-        Source surfaces to filter.
-    limit_error : float, optional
-        Limit defined by the error of the polynomfit. 
-        The default is 0.015.
-    limit_number : float, optional
-        Limit defined by the number of points in the FluxSurface object.
-        The default is 100.
-    order : integer, optional
-        order of the polynom fit function. The default is 2.
+        Surfaces to label.
+    limit_error : float, default 0.015
+        Fit error above which a surface counts as an island [m].
+    limit_number : int, default 100
+        Number of points above which a surface counts as an island.
+    order : int, default 2
+        Order of the polynomial fit. It is reduced automatically for surfaces
+        or sides with too few points.
 
     Returns
-    ------- , , 
-    surfaces : list of FluxSurface
-        Returns the list of flux surfaces, with updated point_type for each 
-        'Points' object attribute.
-        
-        Two more attributes are added: 
-            - surf.coeffs: list, contains coefficient of polinom fit for each 
-            'point_type' group.
-            - surf.errors: list, contains the error of polinom fit for each 
-            'point_type' group.
-            
+    -------
+    list of FluxSurface
+        The labelled surfaces (the same objects as the input).
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``flt`` is neither a list of FluxSurface instances nor an object
+        exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
+        if ``limit_error`` is not numeric, or if ``limit_number`` or ``order``
+        is not an integer.
     ValueError
-        If ``limit_error``, ``limit_number``, or ``order`` is not a scalar 
-        variable and not >0.
-    
+        If ``limit_error``, ``limit_number`` or ``order`` is negative.
+
     Warns
     -----
     UserWarning
-        If any point has R < ``R_MIN_LABEL`` (6.1 m) or |Z| >
-        ``Z_MAX_LABEL`` (1.0 m). The labelling still runs, but its accuracy
-        and that of the density allocation is not guaranteed.
+        If any point has R < ``R_MIN_LABEL`` (6.1 m) or |Z| > ``Z_MAX_LABEL``
+        (1.0 m). The labelling still runs, but its accuracy and that of the
+        density allocation is not guaranteed.
     """
     
     _check_surfaces(flt)
@@ -734,7 +713,7 @@ def label_surfaces(flt, limit_error = 0.015,
             
             # island case: split surface to inner and outer side
             
-            p = np.polyval(coeff, z)    # center line by polyfit
+            p = np.polyval(coeff, z)    # centre line by polyfit
             o = r-p > 0                 # outer side point mask
             i = np.invert(o)            # inner side point mask
 
@@ -783,40 +762,34 @@ def label_surfaces(flt, limit_error = 0.015,
 
 def filter_surfaces_by_type(flt, point_types=None):
     """
-    Filter flux surfaces and their points by point type
-    of the surface.
+    Filter flux surfaces and their points by point type.
 
-    The input may be either a list of :class:`FluxSurface` instances (as
-    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
-    result object exposing ``poincare_res.surfs``.
-    Surfaces left with no points are dropped.
+    Surfaces left without points are dropped.
 
     Parameters
     ----------
-    surfaces : list of FluxSurface or field-line-tracer result
-        Source surfaces to filter.
-    point_types : sequence of integer, optional
-        Arbitrary number of elements to filter. 
-        If ``None`` (default), no constraint on ``point_types``.
+    flt : list of FluxSurface or field-line-tracer result
+        Labelled surfaces (see :func:`label_surfaces`).
+    point_types : sequence of int, default None
+        Point types to keep: 0 non-island, 1 island outer side, 2 island inner
+        side. If None, all points are kept.
 
     Returns
     -------
     list of FluxSurface
-        New :class:`FluxSurface` instances containing only the points
-        that has a specific point type. 
-        Surfaces that end up empty (or that started empty / had ``None``
-        coordinates) are omitted from the result.
-            
+        Copies of the surfaces that contain points of the requested types, with
+        only those points. The input surfaces are not modified.
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``flt`` is neither a list of FluxSurface instances nor an object
+        exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
+        or if ``point_types`` is not a sequence of numbers.
     ValueError
-        If ``point_types`` is not a sequence of elements that are 
-        contained by a predefined set (0, 1 or 2).
+        If ``point_types`` contains values other than 0, 1 or 2.
+    Exception
+        If the surfaces have not been labelled with :func:`label_surfaces`.
     """
     
     _check_surfaces(flt)
@@ -848,41 +821,36 @@ def filter_surfaces_by_type(flt, point_types=None):
 
 def filter_surfaces_by_radius(surfaces, R_range=None):
     """
-    Filter flux surfaces and their points by radial coordinate R range
-    of the surface.
+    Filter flux surfaces and their points by the radius of each point type.
 
-    The input may be either a list of :class:`FluxSurface` instances (as
-    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
-    result object exposing ``poincare_res.surfs``.
-    Surfaces left with no points are dropped.
+    The radius of a point-type group is the R of its fit at Z = 0 (see
+    :func:`label_surfaces`). Surfaces left without points are dropped.
 
     Parameters
     ----------
     surfaces : list of FluxSurface or field-line-tracer result
-        Source surfaces to filter.
-    R_range : sequence of float, optional
-        Two-element ``[min, max]`` interval (in metres) on the major
-        radius ``R`` of the surface (or part of it). 
-        If ``None`` (default), no constraint on ``R``.
+        Labelled surfaces (see :func:`label_surfaces`).
+    R_range : sequence of float, default None
+        Two-element ``[min, max]`` interval (exclusive) on the radius of the
+        point-type groups [m]. If None, no constraint on the radius.
 
     Returns
     -------
     list of FluxSurface
-        New :class:`FluxSurface` instances containing only the points
-        that pass both the ``R`` surface (or part of it) filters. 
-        Surfaces that end up empty (or that started empty / had ``None``
-        coordinates) are omitted from the result.
-            
+        Copies of the surfaces that keep at least one point-type group, with
+        only the points of the groups within ``R_range``. The input surfaces
+        are not modified.
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``surfaces`` is neither a list of FluxSurface instances nor an
+        object exposing ``poincare_res.surfs``, or if an element is not a
+        FluxSurface, or if ``R_range`` has non-numeric elements.
     ValueError
-        If ``R_range`` is not a two-element sequence, if its start is
-        not strictly less than its end.
+        If ``R_range`` is not a two-element sequence with start < end.
+    Exception
+        If the surfaces have not been labelled with :func:`label_surfaces`.
     """
     
     _check_surfaces(surfaces)
@@ -913,40 +881,35 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
 
 def filter_surfaces_by_error(surfaces, error_range=None):
     """
-    Filter flux surfaces and their points by polinom fit error range.
+    Filter flux surfaces and their points by the polynomial fit error.
 
-    The input may be either a list of :class:`FluxSurface` instances (as
-    returned by :func:`load_w7x_flux_surfaces`) or a field-line-tracer
-    result object exposing ``poincare_res.surfs``. 
-    Surfaces left with no points are dropped.
+    Surfaces left without points are dropped.
 
     Parameters
     ----------
     surfaces : list of FluxSurface or field-line-tracer result
-        Source surfaces to filter.
-    error_range : sequence of float, optional
-        Two-element ``[min, max]`` interval on the polynomial fit error
-        of each point-type group (exclusive bounds). If ``None``
-        (default), no constraint on the error.
+        Labelled surfaces (see :func:`label_surfaces`).
+    error_range : sequence of float, default None
+        Two-element ``[min, max]`` interval (exclusive) on the fit error of
+        each point-type group [m]. If None, no constraint on the error.
 
     Returns
     -------
     list of FluxSurface
-        New :class:`FluxSurface` instances containing only the points
-        that pass both the ``error_range`` filters.
-        Surfaces that end up empty (or that started empty / had ``None``
-        coordinates) are omitted from the result.
-        
+        Copies of the surfaces that keep at least one point-type group, with
+        only the points of the groups within ``error_range``. The input
+        surfaces are not modified.
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``surfaces`` is neither a list of FluxSurface instances nor an
+        object exposing ``poincare_res.surfs``, or if an element is not a
+        FluxSurface, or if ``error_range`` has non-numeric elements.
     ValueError
-        If ``error_range`` is not a two-element sequence, if its start is 
-        not strictly less than its end.
+        If ``error_range`` is not a two-element sequence with start < end.
+    Exception
+        If the surfaces have not been labelled with :func:`label_surfaces`.
     """
     
     _check_surfaces(surfaces)
@@ -981,48 +944,44 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
                           boxes=None, aspect=False, 
                           save_image=False, legend=False):
     """
-    Plot a Poincaré section of W7-X flux surfaces in the (R, z) plane.
-    Highlight different regimes based on the types array
+    Plot a Poincaré section in the (R, Z) plane, coloured by point type.
 
     Parameters
     ----------
     surfaces : list of FluxSurface or field-line-tracer result
-        Either a list of :class:`FluxSurface` instances (as returned by
-        :func:`load_w7x_flux_surfaces`) or a field-line-tracer result
-        object exposing ``poincare_res.surfs``.
-    labels : list of strings
-        contains the expression for each type - used in legend
-    magnetic_conf : str, optional
-        Name of the applied magnetic configuration, used in the title.
-    r_range, z_range : list of float, optional
-        Two-element ``[min, max]`` lists used to set the R and z axis
-        limits. If ``None`` (default), matplotlib chooses automatically.
-    s_range : optional
-        Reserved for future use.
-    phi : float, optional
-        Toroidal angle (in radians) at which the Poincaré section was
-        generated. Used in the title.
-    boxes : iterable of 4-tuples, optional
-        Box coordinates ``(x0, y0, x1, y1)`` to be overlaid on the plot.
-    aspect : bool, optional
-        If ``True``, use an equal aspect ratio. Otherwise, use the
-        matplotlib default.
-    save_image : bool or str, optional
-        If ``False`` (default), the figure is not saved to disk. Otherwise
-        the value is interpreted as the destination filename and the
-        figure is written as a PNG (a ``.png`` extension is appended if
-        missing).
-        
+        Labelled surfaces (see :func:`label_surfaces`).
+    labels : list of str
+        Legend label of each point type, in point-type order (0 non-island, 1
+        island outer side, 2 island inner side).
+    magnetic_conf : str, default ''
+        Name of the magnetic configuration, used in the title.
+    r_range, z_range : sequence of float, default None
+        Two-element ``[min, max]`` axis limits [m]. If None, matplotlib chooses
+        the limits.
+    phi : float, default nan
+        Toroidal angle of the Poincaré section [rad], used in the title.
+    boxes : iterable of 4-tuples, default None
+        Boxes ``(r_min, z_min, r_max, z_max)`` [m] to overlay on the plot.
+    aspect : bool, default False
+        If True, use an equal aspect ratio.
+    save_image : bool or str, default False
+        If False, the figure is not saved. Otherwise the value is the
+        destination filename and the figure is written as a PNG (``.png`` is
+        appended if missing).
+    legend : bool, default False
+        If True, show a legend with ``labels``.
+
     Raises
     ------
     TypeError
-        If ``flt`` is not a list of FluxSurface-like objects and does not
-        expose ``poincare_res.surfs``, or if any element lacks the
-        expected ``points``/``n`` attributes; or if a range argument has
-        non-numeric / non-integer elements.
+        If ``surfaces`` is neither a list of FluxSurface instances nor an
+        object exposing ``poincare_res.surfs``, or if an element is not a
+        FluxSurface, or if a range has non-numeric elements.
     ValueError
-        If ``r_range``, or ``z_range`` is not a two-element
-        sequence, if its start is not strictly less than its end.
+        If ``r_range`` or ``z_range`` is not a two-element sequence with
+        start < end.
+    Exception
+        If the surfaces have not been labelled with :func:`label_surfaces`.
     """
     
     _check_surfaces(surfaces)
