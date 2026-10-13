@@ -122,13 +122,6 @@ def perturbation_gaussian(R, Z, field,
     n_t = max(len(traj) for traj in list(r_trajectory) + list(z_trajectory))
     t = np.arange(n_t) * dt
     
-    if not isinstance(file, type(None)):
-        # create the output file, fill it after
-        f = h5py.File(file, "w")
-        f.create_dataset("R", data = R, compression="gzip")
-        f.create_dataset("Z", data = Z, compression="gzip")
-        f.create_dataset("t", data = t, compression="gzip")
-    
     if return_array:
         data = {"R": R, "Z": Z, "t": t,
                 "field": np.zeros((len(t), len(R), len(Z)))}
@@ -144,44 +137,55 @@ def perturbation_gaussian(R, Z, field,
         """Value of filament f_i at step t_i, None beyond its data."""
         return values[f_i][t_i] if t_i < len(values[f_i]) else None
     
-    # iterate through all the frames and the filaments
-    for t_i in range(len(t)):
-        den_act = field.copy()
-        for f_i in range(n_f):
-            posR = step(r_trajectory, f_i, t_i)
-            posZ = step(z_trajectory, f_i, t_i)
-            fwhm_val = (perturbation_fwhm if fwhm_is_scalar
-                        else step(perturbation_fwhm, f_i, t_i))
-            ampl = (perturbation_ampl if ampl_is_scalar
-                    else step(perturbation_ampl, f_i, t_i))
-            # missing data (None or NaN): no filament in this frame
-            if any(v is None or np.isnan(v)
-                   for v in (posR, posZ, fwhm_val, ampl)):
-                continue
-            sigR = sigZ = fwhm_val / fwhm_to_sigma
-            effR = effZ = 3 * sigR
-            # create the distribution in the 6 sigma range
-            G_ind_r = np.where((R >= posR - effR) &
-                               (R <= posR + effR))[0]
-            G_ind_z = np.where((Z >= posZ - effZ) &
-                               (Z <= posZ + effZ))[0]
-            # filament window entirely outside the grid: nothing to add
-            if G_ind_r.size == 0 or G_ind_z.size == 0:
-                continue
-            GR, GZ = np.meshgrid(R[G_ind_r], Z[G_ind_z], indexing="ij")
-            G_field = gaussian_2d(GR, GZ, r0 = posR, z0 = posZ,
-                                      sigma_r = sigR, sigma_z = sigZ,
-                                      A = ampl)
-            # adding the Gaussian influence to the original den. field
-            den_act[G_ind_r[0] : G_ind_r[-1] +1,
-                    G_ind_z[0] : G_ind_z[-1] +1] += G_field
+    f = None
+    try:
+        if file is not None:
+            # create the output file, fill it after
+            f = h5py.File(file, "w")
+            f.create_dataset("R", data = R, compression="gzip")
+            f.create_dataset("Z", data = Z, compression="gzip")
+            f.create_dataset("t", data = t, compression="gzip")
         
-        if return_array: data["field"][t_i, :, :] = den_act
+        # iterate through all the frames and the filaments
+        for t_i in range(len(t)):
+            den_act = field.copy()
+            for f_i in range(n_f):
+                posR = step(r_trajectory, f_i, t_i)
+                posZ = step(z_trajectory, f_i, t_i)
+                fwhm_val = (perturbation_fwhm if fwhm_is_scalar
+                            else step(perturbation_fwhm, f_i, t_i))
+                ampl = (perturbation_ampl if ampl_is_scalar
+                        else step(perturbation_ampl, f_i, t_i))
+                # missing data (None or NaN): no filament in this frame
+                if any(v is None or np.isnan(v)
+                       for v in (posR, posZ, fwhm_val, ampl)):
+                    continue
+                sigR = sigZ = fwhm_val / fwhm_to_sigma
+                effR = effZ = 3 * sigR
+                # create the distribution in the 6 sigma range
+                G_ind_r = np.where((R >= posR - effR) &
+                                   (R <= posR + effR))[0]
+                G_ind_z = np.where((Z >= posZ - effZ) &
+                                   (Z <= posZ + effZ))[0]
+                # filament window entirely outside the grid: nothing to add
+                if G_ind_r.size == 0 or G_ind_z.size == 0:
+                    continue
+                GR, GZ = np.meshgrid(R[G_ind_r], Z[G_ind_z], indexing="ij")
+                G_field = gaussian_2d(GR, GZ, r0 = posR, z0 = posZ,
+                                          sigma_r = sigR, sigma_z = sigZ,
+                                          A = ampl)
+                # adding the Gaussian influence to the original den. field
+                den_act[G_ind_r[0] : G_ind_r[-1] +1,
+                        G_ind_z[0] : G_ind_z[-1] +1] += G_field
+        
+            if return_array: data["field"][t_i, :, :] = den_act
             
-        if not isinstance(file, type(None)):
-            # Save arrays to an HDF5 file
-            f.create_dataset("field_" + str(t_i).zfill(5), 
-                              data = den_act, compression="gzip")
+            if f is not None:
+                # Save arrays to an HDF5 file
+                f.create_dataset("field_" + str(t_i).zfill(5), 
+                                  data = den_act, compression="gzip")
+    finally:
+        if f is not None: f.close()
     
     if return_array: return data
     else: return None
@@ -251,46 +255,50 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
     field = _field_rz(R, Z, field)
     t = np.arange(nt) * dt
     
-    if not isinstance(file, type(None)):
-        # create the output file, fill it after
-        f = h5py.File(file, "w")
-        f.create_dataset("R", data = R, compression="gzip")
-        f.create_dataset("Z", data = Z, compression="gzip")
-        f.create_dataset("t", data = t, compression="gzip")
-    
     if return_array:
         data = {"R": R, "Z": Z, "t": t,
                 "field": np.zeros((len(t), len(R), len(Z)))}
     
-    # iterate through all the frames and the filaments
-    mask = np.zeros(len(R), dtype=bool)
-    for t_i in range(len(t)):
-        den_act = field.copy()
+    f = None
+    try:
+        if file is not None:
+            # create the output file, fill it after
+            f = h5py.File(file, "w")
+            f.create_dataset("R", data = R, compression="gzip")
+            f.create_dataset("Z", data = Z, compression="gzip")
+            f.create_dataset("t", data = t, compression="gzip")
         
-        for z_i in range(len(Z)):
-            r0_center = r_trajectory[z_i]
+        # iterate through all the frames and the filaments
+        mask = np.zeros(len(R), dtype=bool)
+        for t_i in range(len(t)):
+            den_act = field.copy()
+        
+            for z_i in range(len(Z)):
+                r0_center = r_trajectory[z_i]
             
-            k = 2 * np.pi / perturbation_wavelength
-            omega = k * perturbation_speed
-            r0_act = (r0_center + perturbation_ampl
-                      * np.cos(k * Z[z_i] - omega * t[t_i]))
+                k = 2 * np.pi / perturbation_wavelength
+                omega = k * perturbation_speed
+                r0_act = (r0_center + perturbation_ampl
+                          * np.cos(k * Z[z_i] - omega * t[t_i]))
             
-            peak = np.interp(r0_center, R, den_act[:, z_i])
+                peak = np.interp(r0_center, R, den_act[:, z_i])
             
             
-            if r0_act < r0_center: r_min, r_max = r0_act, r0_center
-            else: r_min, r_max = r0_center, r0_act
-            mask[:] = (R < r_max) & (R > r_min)
+                if r0_act < r0_center: r_min, r_max = r0_act, r0_center
+                else: r_min, r_max = r0_center, r0_act
+                mask[:] = (R < r_max) & (R > r_min)
             
-            den_act[mask, z_i] = peak
+                den_act[mask, z_i] = peak
             
         
-        if return_array: data["field"][t_i, :, :] = den_act
+            if return_array: data["field"][t_i, :, :] = den_act
             
-        if not isinstance(file, type(None)):
-            # Save arrays to an HDF5 file
-            f.create_dataset("field_" + str(t_i).zfill(5), 
-                              data = den_act, compression="gzip")
+            if f is not None:
+                # Save arrays to an HDF5 file
+                f.create_dataset("field_" + str(t_i).zfill(5), 
+                                  data = den_act, compression="gzip")
+    finally:
+        if f is not None: f.close()
     
     if return_array: return data
     else: return None
