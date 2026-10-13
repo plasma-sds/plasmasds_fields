@@ -737,7 +737,22 @@ def label_surfaces(flt, limit_error = 0.015,
             p = np.polyval(coeff, z)    # center line by polyfit
             o = r-p > 0                 # outer side point mask
             i = np.invert(o)            # inner side point mask
-            
+
+            # Reassign each point to the side whose fit it is closer to:
+            # the single centre line misplaces points at the island tips,
+            # where both sides bend towards each other.
+            side = np.where(o, 1, 2)
+            for _ in range(3):
+                coeff_o, _ = _fit_surface(z[side == 1], r[side == 1], order)
+                coeff_i, _ = _fit_surface(z[side == 2], r[side == 2], order)
+                new = np.where(np.abs(r - np.polyval(coeff_o, z)) <
+                               np.abs(r - np.polyval(coeff_i, z)), 1, 2)
+                if np.array_equal(new, side) or new.min() == new.max():
+                    break
+                side = new
+            o = side == 1
+            i = side == 2
+
             # Outer side
             surf.update_point_type(1, mask=o)
             coeff_o, error_o = _fit_surface(z[o], r[o], order)
