@@ -1,20 +1,42 @@
+"""
+1-D profile interpolator with editable datapoints.
+"""
 import numpy as np
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 
 class ProfileInterpolator1D:
-    def __init__(self,  position, profile):
-        """
-        Initialize the 1D interpolator with input profile and position arrays.
+    """
+    Linear 1-D interpolator of a profile, with editable datapoints.
 
-        Parameters
-        ----------          
-        position : array-like
-            The array of position values (e.g. R coordinates or position
-            indices).
-        profile : array-like
-            The array of profile values corresponding to ``position``.
-        """
+    The profile is interpolated linearly between the datapoints and
+    extrapolated linearly outside them. Datapoints can be corrected
+    (:meth:`correct_datapoints`) or added (:meth:`add_datapoints`), and
+    :meth:`reset` restores the original data. Calling the instance interpolates
+    the profile, so it can be passed directly as ``density_function`` to
+    :func:`w7x.fields.add_density`.
+
+    Parameters
+    ----------
+    position : array_like
+        Positions of the datapoints, e.g. R coordinates [m]. They do not need
+        to be sorted.
+    profile : array_like
+        Profile values at ``position``, e.g. densities [m^-3].
+
+    Attributes
+    ----------
+    position, profile : numpy.ndarray
+        Current datapoints, including corrections and added points. Indices
+        follow the order of the input arrays, with added datapoints appended at
+        the end.
+    original_position, original_profile : numpy.ndarray
+        Datapoints as given at construction.
+    interpolator : scipy.interpolate.interp1d
+        Interpolator built from the current datapoints.
+    """
+
+    def __init__(self,  position, profile):
         self.original_profile = np.array(profile, dtype=float)
         self.original_position = np.array(position, dtype=float)
 
@@ -24,8 +46,19 @@ class ProfileInterpolator1D:
 
     def __call__(self, position_values):
         """
-        Call the instance directly to interpolate at ``position_values``.
-        Equivalent to ``interp.interpolator(x)``.
+        Interpolate the profile at ``position_values``.
+
+        Equivalent to ``self.interpolator(position_values)``.
+
+        Parameters
+        ----------
+        position_values : float or array_like
+            Positions at which to evaluate the profile.
+
+        Returns
+        -------
+        numpy.ndarray
+            Interpolated (or extrapolated) profile values.
         """
         return self.interpolator(position_values)
 
@@ -36,37 +69,33 @@ class ProfileInterpolator1D:
 
     def correct_datapoints(self, position_value, profile_value, by_index=False):
         """
-        Override the profile at one or more existing datapoints.
+        Overwrite the profile at one or more existing datapoints.
 
-        By default ``position_value`` is interpreted as a position
-        coordinate and the correction is applied to the closest
-        datapoint in ``self.position``. With ``by_index=True``,
-        ``position_value`` is interpreted as a direct index (or
-        indices) into ``self.position`` / ``self.profile``.
-
-        Both ``position_value`` and ``profile_value`` may be scalars or
-        array-likes of matching length, allowing multiple datapoints to
-        be overwritten in a single call.
-
-        Corrections are cumulative: each call modifies the current
-        ``self.position`` / ``self.profile`` state, building on any
-        previous corrections rather than reapplying them from the
-        originals.
+        By default ``position_value`` is a position, and the closest datapoint
+        in ``self.position`` is corrected. With ``by_index=True``,
+        ``position_value`` is an index (or indices) into ``self.position`` /
+        ``self.profile``. Corrections are cumulative: each call builds on the
+        current datapoints, including earlier corrections.
 
         Parameters
         ----------
-        position_value : float, int, or array-like
-            Position coordinate(s) used to locate the datapoint(s) to
-            overwrite, or index/indices into the working arrays when
-            ``by_index`` is ``True``.
-        profile_value : float or array-like
-            New profile value(s) to assign at the selected datapoint(s).
-            Must be a scalar or have the same shape as ``position_value``.
+        position_value : float, int or array_like
+            Position(s) of the datapoint(s) to overwrite, or their
+            index/indices if ``by_index`` is True.
+        profile_value : float or array_like
+            New profile value(s). Either a scalar or the same shape as
+            ``position_value``.
         by_index : bool, default False
-            If ``True``, treat ``position_value`` as an index (or array
-            of indices) rather than a position coordinate. Indices follow
-            the order of the arrays given at construction, with datapoints
-            from :meth:`add_datapoints` appended at the end.
+            If True, treat ``position_value`` as index/indices rather than
+            positions. Indices follow the order of the arrays given at
+            construction, with datapoints from :meth:`add_datapoints` appended
+            at the end.
+
+        Raises
+        ------
+        ValueError
+            If ``profile_value`` is neither a scalar nor the same shape as
+            ``position_value``.
         """
         position_values = np.atleast_1d(position_value)
         profile_values = np.atleast_1d(profile_value)
@@ -90,25 +119,25 @@ class ProfileInterpolator1D:
 
     def add_datapoints(self, position_value, profile_value):
         """
-        Append new datapoints to ``self.position`` / ``self.profile``.
+        Append new datapoints and rebuild the interpolator.
 
-        Both ``position_value`` and ``profile_value`` may be scalars
-        (float or int) or array-likes of matching length. New datapoints are
-        appended at the end, so existing indices are unchanged, and the
-        interpolator is rebuilt.
-
-        Note that this expands only the working arrays; the originals
-        (``self.original_position`` / ``self.original_profile``) are left
-        untouched, so :meth:`reset` will discard any added datapoints
-        along with corrections.
+        New datapoints are appended at the end, so existing indices are
+        unchanged. Only the current datapoints are extended: :meth:`reset`
+        discards added datapoints along with corrections.
 
         Parameters
         ----------
-        position_value : float, int, or array-like
-            New position coordinate(s) to add.
-        profile_value : float or array-like
-            Corresponding profile value(s). Must be a scalar or have
-            the same shape as ``position_value``.
+        position_value : float, int or array_like
+            Position(s) of the new datapoint(s).
+        profile_value : float or array_like
+            Profile value(s) of the new datapoint(s). Either a scalar or the
+            same shape as ``position_value``.
+
+        Raises
+        ------
+        ValueError
+            If ``profile_value`` is neither a scalar nor the same shape as
+            ``position_value``.
         """
         position_values = np.atleast_1d(position_value)
         profile_values = np.atleast_1d(profile_value)
@@ -127,9 +156,10 @@ class ProfileInterpolator1D:
         self.interpolator = interp1d(self.position, self.profile, bounds_error=False, fill_value="extrapolate")
 
     def reset(self):
-        """Reset ``self.position`` / ``self.profile`` to the originals and rebuild the interpolator.
+        """
+        Restore the original datapoints and rebuild the interpolator.
 
-        Discards any corrections that have been applied since construction.
+        Discards all corrections and added datapoints.
         """
         self.position = np.copy(self.original_position)
         self.profile = np.copy(self.original_profile)
@@ -137,19 +167,15 @@ class ProfileInterpolator1D:
 
     def show(self, show_original=True, ax=None):
         """
-        Plot the current position / profile pairs as a solid line.
-
-        Optionally overlays the originally supplied datapoints as a
-        scatter plot.
+        Plot the current profile, optionally with the original datapoints.
 
         Parameters
         ----------
         show_original : bool, default True
-            If ``True``, scatter the original (``original_position``,
-            ``original_profile``) datapoints on top of the line plot.
-        ax : matplotlib.axes.Axes, optional
-            Axes to draw on. If ``None``, a new figure and axes are
-            created and ``plt.show()`` is called before returning.
+            If True, overlay the original datapoints as a scatter plot.
+        ax : matplotlib.axes.Axes, default None
+            Axes to draw on. If None, a new figure is created and
+            ``plt.show()`` is called before returning.
 
         Returns
         -------
