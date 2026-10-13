@@ -48,11 +48,11 @@ def perturbation_gaussian(R, Z, field,
     r_trajectory : list of array-like, length n_filaments
         X-position [m] of each filament at every time step.
         r_trajectory[i][t_i] gives the x-coordinate of filament i at
-        time index t_i. None values are silently skipped.
+        time index t_i. None or NaN values are skipped.
     z_trajectory : list of array-like, length n_filaments
         Y-position [m] of each filament at every time step.
         z_trajectory[i][t_i] gives the y-coordinate of filament i at
-        time index t_i. None values are silently skipped.
+        time index t_i. None or NaN values are skipped.
     perturbation_fwhm : float or list of array-like, length n_filaments
         Full Width at Half Maximum [m] of the filament Gaussian. Used
         to derive the sigma (sigma = FWHM / (2 sqrt(2 ln 2)) ≈ FWHM / 2.3548)
@@ -124,28 +124,31 @@ def perturbation_gaussian(R, Z, field,
     for t_i in range(len(t)):
         den_act = field.copy()
         for f_i in range(n_f):
-            try: # if nonetype in datafield -> it will be passed
-                posR, posZ = r_trajectory[f_i][t_i], z_trajectory[f_i][t_i]
-                fwhm_val = (perturbation_fwhm if fwhm_is_scalar
-                            else perturbation_fwhm[f_i][t_i])
-                ampl = (perturbation_ampl if ampl_is_scalar
-                        else perturbation_ampl[f_i][t_i])
-                sigR = sigZ = fwhm_val / fwhm_to_sigma
-                effR = effZ = 3 * sigR
-                # create the distribution in the 6 sigma range
-                G_ind_r = np.where((R >= posR - effR) &
-                                   (R <= posR + effR))[0]
-                G_ind_z = np.where((Z >= posZ - effZ) &
-                                   (Z <= posZ + effZ))[0]
-                GR, GZ = np.meshgrid(R[G_ind_r], Z[G_ind_z], indexing="ij")
-                G_field = gaussian_2d(GR, GZ, r0 = posR, z0 = posZ,
-                                          sigma_r = sigR, sigma_z = sigZ,
-                                          A = ampl)
-                # adding the Gaussian influence to the original den. field
-                den_act[G_ind_r[0] : G_ind_r[-1] +1,
-                        G_ind_z[0] : G_ind_z[-1] +1] += G_field
-                
-            except: continue
+            posR, posZ = r_trajectory[f_i][t_i], z_trajectory[f_i][t_i]
+            # missing position (None or NaN): no filament in this frame
+            if posR is None or posZ is None or np.isnan(posR) or np.isnan(posZ):
+                continue
+            fwhm_val = (perturbation_fwhm if fwhm_is_scalar
+                        else perturbation_fwhm[f_i][t_i])
+            ampl = (perturbation_ampl if ampl_is_scalar
+                    else perturbation_ampl[f_i][t_i])
+            sigR = sigZ = fwhm_val / fwhm_to_sigma
+            effR = effZ = 3 * sigR
+            # create the distribution in the 6 sigma range
+            G_ind_r = np.where((R >= posR - effR) &
+                               (R <= posR + effR))[0]
+            G_ind_z = np.where((Z >= posZ - effZ) &
+                               (Z <= posZ + effZ))[0]
+            # filament window entirely outside the grid: nothing to add
+            if G_ind_r.size == 0 or G_ind_z.size == 0:
+                continue
+            GR, GZ = np.meshgrid(R[G_ind_r], Z[G_ind_z], indexing="ij")
+            G_field = gaussian_2d(GR, GZ, r0 = posR, z0 = posZ,
+                                      sigma_r = sigR, sigma_z = sigZ,
+                                      A = ampl)
+            # adding the Gaussian influence to the original den. field
+            den_act[G_ind_r[0] : G_ind_r[-1] +1,
+                    G_ind_z[0] : G_ind_z[-1] +1] += G_field
         
         if return_array: data["field"][t_i, :, :] = den_act
             
