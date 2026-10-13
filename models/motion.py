@@ -53,6 +53,11 @@ def perturbation_gaussian(R, Z, field,
         Y-position [m] of each filament at every time step.
         z_trajectory[i][t_i] gives the y-coordinate of filament i at
         time index t_i. None or NaN values are skipped.
+        
+        Trajectories (and per-step ``perturbation_fwhm`` /
+        ``perturbation_ampl`` lists) may have different lengths: the number
+        of frames is set by the longest trajectory, and a filament is absent
+        in the frames beyond the end of its own data.
     perturbation_fwhm : float or list of array-like, length n_filaments
         Full Width at Half Maximum [m] of the filament Gaussian. Used
         to derive the sigma (sigma = FWHM / (2 sqrt(2 ln 2)) ≈ FWHM / 2.3548)
@@ -96,7 +101,26 @@ def perturbation_gaussian(R, Z, field,
         Returns None if return_array=False.
     """
     field = _field_rz(R, Z, field)
-    t = np.arange(len(r_trajectory[0])) * dt
+    
+    _scalar_types = (int, float, np.integer, np.floating)
+    fwhm_is_scalar = isinstance(perturbation_fwhm, _scalar_types)
+    ampl_is_scalar = isinstance(perturbation_ampl, _scalar_types)
+    n_f = len(r_trajectory)
+    
+    # every per-filament input must describe the same filaments
+    per_filament = [("z_trajectory", z_trajectory)]
+    if not fwhm_is_scalar: per_filament.append(("perturbation_fwhm",
+                                                perturbation_fwhm))
+    if not ampl_is_scalar: per_filament.append(("perturbation_ampl",
+                                                perturbation_ampl))
+    for name, values in per_filament:
+        if len(values) != n_f:
+            raise ValueError(f"{name} has {len(values)} filaments, "
+                             f"r_trajectory has {n_f}.")
+    
+    # the longest trajectory sets the number of frames
+    n_t = max(len(traj) for traj in list(r_trajectory) + list(z_trajectory))
+    t = np.arange(n_t) * dt
     
     if not isinstance(file, type(None)):
         # create the output file, fill it after
@@ -114,24 +138,26 @@ def perturbation_gaussian(R, Z, field,
         return A * np.exp(-(((R - r0) ** 2) / (2 * sigma_r ** 2)
                             + ((Z - z0) ** 2) / (2 * sigma_z ** 2)))
 
-    _scalar_types = (int, float, np.integer, np.floating)
     fwhm_to_sigma = 2 * np.sqrt(2 * np.log(2))     # FWHM = 2.3548 sigma
-    fwhm_is_scalar = isinstance(perturbation_fwhm, _scalar_types)
-    ampl_is_scalar = isinstance(perturbation_ampl, _scalar_types)
-    n_f = len(r_trajectory)
+    
+    def step(values, f_i, t_i):
+        """Value of filament f_i at step t_i, None beyond its data."""
+        return values[f_i][t_i] if t_i < len(values[f_i]) else None
     
     # iterate through all the frames and the filaments
     for t_i in range(len(t)):
         den_act = field.copy()
         for f_i in range(n_f):
-            posR, posZ = r_trajectory[f_i][t_i], z_trajectory[f_i][t_i]
-            # missing position (None or NaN): no filament in this frame
-            if posR is None or posZ is None or np.isnan(posR) or np.isnan(posZ):
-                continue
+            posR = step(r_trajectory, f_i, t_i)
+            posZ = step(z_trajectory, f_i, t_i)
             fwhm_val = (perturbation_fwhm if fwhm_is_scalar
-                        else perturbation_fwhm[f_i][t_i])
+                        else step(perturbation_fwhm, f_i, t_i))
             ampl = (perturbation_ampl if ampl_is_scalar
-                    else perturbation_ampl[f_i][t_i])
+                    else step(perturbation_ampl, f_i, t_i))
+            # missing data (None or NaN): no filament in this frame
+            if any(v is None or np.isnan(v)
+                   for v in (posR, posZ, fwhm_val, ampl)):
+                continue
             sigR = sigZ = fwhm_val / fwhm_to_sigma
             effR = effZ = 3 * sigR
             # create the distribution in the 6 sigma range
