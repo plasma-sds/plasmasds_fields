@@ -287,14 +287,15 @@ def make_regular_density_field(r, z, density, dr=0.0005, dz=0.0005,
         ``bottom_value`` is not numeric, or if a limit has non-numeric
         elements.
     ValueError
-        If ``dr``, ``dz`` or ``bottom_value`` is negative, or if ``r_limits``
-        or ``z_limits`` is not a two-element sequence with start < end.
+        If ``dr`` or ``dz`` is not positive, if ``bottom_value`` is
+        negative, or if ``r_limits`` or ``z_limits`` is not a two-element
+        sequence with start < end.
     """
     
     pc._check_sequence("r", r)
     pc._check_sequence("z", z)
-    pc._check_scalar("dr", dr, min_value=0)
-    pc._check_scalar("dz", dz, min_value=0)
+    pc._check_scalar("dr", dr, min_value=0, inclusive_min=False)
+    pc._check_scalar("dz", dz, min_value=0, inclusive_min=False)
     pc._check_scalar("bottom_value", bottom_value, min_value=0)
     pc._check_range("r_limits", r_limits)
     pc._check_range("z_limits", z_limits)
