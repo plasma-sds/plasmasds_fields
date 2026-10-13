@@ -217,9 +217,10 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
         Time step of the simulation.
     nt : integer
         Number of timesteps (total time is equal to nt*dt).
-    r_trajectory : numpy.ndarray, shape (NZ,)
-        Discribes the vertical center line of the sine perturbation wave.
-        (usually a parabolic line along z)
+    r_trajectory : float or numpy.ndarray, shape (NZ,)
+        R position [m] of the vertical centre line of the sine perturbation
+        wave at each Z grid point (usually a parabolic line along Z). A
+        scalar gives a straight vertical centre line.
     perturbation_speed : float
         Vertical propagation speed of sine perturbation wave.
     perturbation_wavelength : float
@@ -253,6 +254,16 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
     """
     
     field = _field_rz(R, Z, field)
+    
+    # centre line: one R value per Z grid point; a scalar gives a straight line
+    r_trajectory = np.asarray(r_trajectory, dtype=float)
+    if r_trajectory.ndim == 0:
+        r_trajectory = np.full(len(Z), float(r_trajectory))
+    if r_trajectory.shape != (len(Z),):
+        raise ValueError(
+            f"r_trajectory must be a scalar or have one value per Z grid "
+            f"point ({len(Z)}), got shape {r_trajectory.shape}.")
+    
     t = np.arange(nt) * dt
     
     if return_array:
