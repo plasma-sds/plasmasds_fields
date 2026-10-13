@@ -1,17 +1,17 @@
-# -*- coding: utf-8 -*-
 """
-Created on Thu Jun 11 20:28:31 2026
-
-@author: akosk
+Time-dependent density perturbations on 2-D background fields: Gaussian
+filaments and sine waves, with HDF5 input and output.
 """
 import numpy as np
 import h5py
 
 def _field_rz(R, Z, field):
     """
-    Return ``field`` in (NR, NZ) layout. Accepts (NR, NZ), and (NZ, NR) as
-    produced by w7x.fields.make_regular_density_field or HESEL snapshots.
-    A square field (NR == NZ) is taken as (NR, NZ).
+    Return ``field`` in (NR, NZ) layout.
+
+    Accepts (NR, NZ), and (NZ, NR) as produced by
+    w7x.fields.make_regular_density_field or HESEL snapshots. A square field
+    (NR == NZ) is taken as (NR, NZ).
     """
     field = np.asarray(field)
     if field.shape == (len(R), len(Z)):
@@ -28,77 +28,72 @@ def perturbation_gaussian(R, Z, field,
                           perturbation_fwhm, perturbation_ampl,
                           file=None, return_array=True):
     """
-    Simulates the evolution of a 2D plasma density field over time by
-    superimposing travelling filaments, each modelled as a 2D Gaussian,
-    onto a background density profile. Results can be saved to an HDF5
-    file and/or returned as an in-memory dictionary.
+    Simulate travelling Gaussian filaments on a 2-D background density field.
+
+    At each time step, every filament is added to the background field as a
+    round 2-D Gaussian, evaluated within ±3 sigma of its centre. The result can
+    be written to an HDF5 file and/or returned in memory.
 
     Parameters
     ----------
     R : numpy.ndarray, shape (NR,)
-        1D array of R-coordinates of the spatial grid [m].
+        R coordinates of the grid [m].
     Z : numpy.ndarray, shape (NZ,)
-        1D array of Z-coordinates of the spatial grid [m].
+        Z coordinates of the grid [m].
     field : numpy.ndarray, shape (NR, NZ) or (NZ, NR)
-        2D background density field [m^-3]. The (NZ, NR) layout of
-        w7x.fields.make_regular_density_field is transposed automatically;
-        a square field is taken as (NR, NZ).
+        Background density field [m^-3]. The (NZ, NR) layout of
+        :func:`w7x.fields.make_regular_density_field` is transposed
+        automatically; a square field is taken as (NR, NZ).
     dt : float
-        Time step of the simulation.
-    r_trajectory : list of array-like, length n_filaments
-        X-position [m] of each filament at every time step.
-        r_trajectory[i][t_i] gives the x-coordinate of filament i at
-        time index t_i. None or NaN values are skipped.
-    z_trajectory : list of array-like, length n_filaments
-        Y-position [m] of each filament at every time step.
-        z_trajectory[i][t_i] gives the y-coordinate of filament i at
-        time index t_i. None or NaN values are skipped.
-        
+        Time step [s].
+    r_trajectory : list of array_like, length n_filaments
+        R position of each filament at each time step [m]:
+        ``r_trajectory[f_i][t_i]`` is the R of filament ``f_i`` at step
+        ``t_i``. None or NaN values mean the filament is absent.
+    z_trajectory : list of array_like, length n_filaments
+        Z position of each filament at each time step [m], indexed like
+        ``r_trajectory``. None or NaN values mean the filament is absent.
+
         Trajectories (and per-step ``perturbation_fwhm`` /
-        ``perturbation_ampl`` lists) may have different lengths: the number
-        of frames is set by the longest trajectory, and a filament is absent
-        in the frames beyond the end of its own data.
-    perturbation_fwhm : float or list of array-like, length n_filaments
-        Full Width at Half Maximum [m] of the filament Gaussian. Used
-        to derive the sigma (sigma = FWHM / (2 sqrt(2 ln 2)) ≈ FWHM / 2.3548)
-        and the ±3-sigma evaluation window (half-width = 3 sigma).
-
-        - If a scalar (``float`` / ``int``), the same FWHM is applied
-          to every filament at every time step.
-        - If a list of array-like, indexing follows ``r_trajectory``:
-          ``perturbation_fwhm[f_i][t_i]`` is the FWHM of filament
-          ``f_i`` at time ``t_i``.
-    perturbation_ampl : float or list of array-like, length n_filaments
-        Peak amplitude [m^-3] of the filament Gaussian.
-
-        - If a scalar, the same amplitude is applied to every
-          filament at every time step.
-        - If a list of array-like, indexing follows ``r_trajectory``:
-          ``perturbation_ampl[f_i][t_i]`` is the amplitude of
-          filament ``f_i`` at time ``t_i``.
-    file : str or path-like, optional
-        If provided, results are written to an HDF5 file at this path.
-        The file contains datasets 'R', 'Z', 't', and one dataset per
-        time step named 'field_TTTTT' (zero-padded index).
-        The default is None (no file output).
-    return_array : bool, optional
-        If True, the time-resolved density field is accumulated in
-        memory and returned as a dictionary. Set to False to reduce
-        memory usage when only file output is needed.
-        The default is True.
+        ``perturbation_ampl`` lists) may have different lengths: the number of
+        frames is set by the longest trajectory, and a filament is absent in
+        the frames beyond the end of its own data.
+    perturbation_fwhm : float or list of array_like, length n_filaments
+        Full width at half maximum of the filaments [m]. A scalar applies to
+        all filaments and time steps; a list is indexed like ``r_trajectory``.
+        The Gaussian sigma is FWHM / (2 sqrt(2 ln 2)) ≈ FWHM / 2.3548.
+    perturbation_ampl : float or list of array_like, length n_filaments
+        Peak amplitude of the filaments [m^-3]. A scalar applies to all
+        filaments and time steps; a list is indexed like ``r_trajectory``.
+    file : str or path-like, default None
+        If given, the result is written to an HDF5 file at this path, with
+        datasets ``"R"``, ``"Z"``, ``"t"`` and one dataset per time step named
+        ``"field_TTTTT"`` (zero-padded frame number). The file is closed even
+        if an error occurs.
+    return_array : bool, default True
+        If True, the time-resolved field is kept in memory and returned. Set to
+        False to save memory when only the file output is needed.
 
     Returns
     -------
-    data : dict, only returned when return_array=True
-        Dictionary with the following keys:
+    dict or None
+        If ``return_array`` is True, a dictionary with:
 
-        - ``'R'``  : numpy.ndarray, shape (Nx,)  — x-coordinate array.
-        - ``'Z'``  : numpy.ndarray, shape (Ny,)  — y-coordinate array.
-        - ``'t'``  : numpy.ndarray, shape (Nt,)  — time array.
-        - ``'field'``  : numpy.ndarray, shape (Nt, Nx, Ny) — density field
-          at each time step, background plus all filament contributions.
+        * ``"R"``: R coordinates, shape (NR,) [m].
+        * ``"Z"``: Z coordinates, shape (NZ,) [m].
+        * ``"t"``: time axis, shape (Nt,) [s].
+        * ``"field"``: density field at each time step, shape (Nt, NR, NZ)
+          [m^-3].
 
-        Returns None if return_array=False.
+        None if ``return_array`` is False.
+
+    Raises
+    ------
+    ValueError
+        If ``field`` does not match the lengths of ``R`` and ``Z``, or if
+        ``z_trajectory``, ``perturbation_fwhm`` or ``perturbation_ampl`` (when
+        given per filament) has a different number of filaments than
+        ``r_trajectory``.
     """
     field = _field_rz(R, Z, field)
     
@@ -126,8 +121,12 @@ def perturbation_gaussian(R, Z, field,
         data = {"R": R, "Z": Z, "t": t,
                 "field": np.zeros((len(t), len(R), len(Z)))}
     
-    # create the Gaussian distribution for reduced area, 6 sigma range
+    # 2-D Gaussian, evaluated within a ±3 sigma window around each filament
     def gaussian_2d(R, Z, r0=0, z0=0, sigma_r=1, sigma_z=1, A=1):
+        """
+        Return a 2-D Gaussian of amplitude ``A`` centred at (r0, z0).
+        """
+
         return A * np.exp(-(((R - r0) ** 2) / (2 * sigma_r ** 2)
                             + ((Z - z0) ** 2) / (2 * sigma_z ** 2)))
 
@@ -162,7 +161,7 @@ def perturbation_gaussian(R, Z, field,
                     continue
                 sigR = sigZ = fwhm_val / fwhm_to_sigma
                 effR = effZ = 3 * sigR
-                # create the distribution in the 6 sigma range
+                # grid indices within the ±3 sigma window
                 G_ind_r = np.where((R >= posR - effR) &
                                    (R <= posR + effR))[0]
                 G_ind_z = np.where((Z >= posZ - effZ) &
@@ -194,63 +193,67 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
                       perturbation_wavelength, perturbation_ampl,
                       file=None, return_array=True):
     """
-    Simulates the evolution of a 2D plasma density field over time by
-    projecting a travelling sine perturbation wave, modelled as constant 
-    density areas on a background density profile. Results can be saved to an 
-    HDF5 file and/or returned as an in-memory dictionary.
-    
-    In each horizontal slab of the 2D background profile the model sets 
-    all the density values between the center line and the sine wave to 
-    the one measured at the center line.
+    Simulate a travelling sine perturbation of a 2-D background density field.
+
+    The perturbation is a sine wave around a vertical centre line,
+    ``r_trajectory``, travelling along Z. At each time step and Z grid point,
+    all densities between the centre line and the displaced wave are set to the
+    background density at the centre line, i.e. the density profile is
+    flattened over the displacement. The result can be written to an HDF5 file
+    and/or returned in memory.
 
     Parameters
     ----------
     R : numpy.ndarray, shape (NR,)
-        1D array of R-coordinates of the spatial grid [m].
+        R coordinates of the grid [m].
     Z : numpy.ndarray, shape (NZ,)
-        1D array of Z-coordinates of the spatial grid [m].
+        Z coordinates of the grid [m].
     field : numpy.ndarray, shape (NR, NZ) or (NZ, NR)
-        2D background density field [m^-3]. The (NZ, NR) layout of
-        w7x.fields.make_regular_density_field is transposed automatically;
-        a square field is taken as (NR, NZ).
+        Background density field [m^-3]. The (NZ, NR) layout of
+        :func:`w7x.fields.make_regular_density_field` is transposed
+        automatically; a square field is taken as (NR, NZ).
     dt : float
-        Time step of the simulation.
-    nt : integer
-        Number of timesteps (total time is equal to nt*dt).
+        Time step [s].
+    nt : int
+        Number of time steps (total time nt * dt).
     r_trajectory : float or numpy.ndarray, shape (NZ,)
-        R position [m] of the vertical centre line of the sine perturbation
-        wave at each Z grid point (usually a parabolic line along Z). A
-        scalar gives a straight vertical centre line.
+        R position of the centre line of the wave at each Z grid point [m],
+        usually a parabolic line along Z. A scalar gives a straight vertical
+        centre line.
     perturbation_speed : float
-        Vertical propagation speed of sine perturbation wave.
+        Propagation speed of the wave along Z [m/s]; positive values travel
+        towards larger Z.
     perturbation_wavelength : float
-        Wave length of the sine perturbation wave.
+        Wavelength of the wave along Z [m].
     perturbation_ampl : float
-        Amplitude of displacement in the sine perturbation wave.
-    file : str or path-like, optional
-        If provided, results are written to an HDF5 file at this path.
-        The file contains datasets 'R', 'Z', 't', and one dataset per
-        time step named 'field_TTTTT' (zero-padded index).
-        The default is None (no file output).
-    return_array : bool, optional
-        If True, the time-resolved density field is accumulated in
-        memory and returned as a dictionary. Set to False to reduce
-        memory usage when only file output is needed.
-        The default is True.
+        Amplitude of the radial displacement of the wave [m].
+    file : str or path-like, default None
+        If given, the result is written to an HDF5 file at this path, with
+        datasets ``"R"``, ``"Z"``, ``"t"`` and one dataset per time step named
+        ``"field_TTTTT"`` (zero-padded frame number). The file is closed even
+        if an error occurs.
+    return_array : bool, default True
+        If True, the time-resolved field is kept in memory and returned. Set to
+        False to save memory when only the file output is needed.
 
     Returns
     -------
-    data : dict, only returned when return_array=True
-        Dictionary with the following keys:
+    dict or None
+        If ``return_array`` is True, a dictionary with:
 
-        - ``'R'``  : numpy.ndarray, shape (Nx,)  — x-coordinate array.
-        - ``'Z'``  : numpy.ndarray, shape (Ny,)  — y-coordinate array.
-        - ``'t'``  : numpy.ndarray, shape (Nt,)  — time array.
-        - ``'field'``  : numpy.ndarray, shape (Nt, Nx, Ny) — density field
-          at each time step, background plus all filament contributions.
+        * ``"R"``: R coordinates, shape (NR,) [m].
+        * ``"Z"``: Z coordinates, shape (NZ,) [m].
+        * ``"t"``: time axis, shape (Nt,) [s].
+        * ``"field"``: density field at each time step, shape (Nt, NR, NZ)
+          [m^-3].
 
-        Returns None if return_array=False.
+        None if ``return_array`` is False.
 
+    Raises
+    ------
+    ValueError
+        If ``field`` does not match the lengths of ``R`` and ``Z``, or if
+        ``r_trajectory`` is neither a scalar nor one value per Z grid point.
     """
     
     field = _field_rz(R, Z, field)
@@ -316,34 +319,33 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
 
 def import_density_field(file):
     """
-    Reads a density field simulation from an HDF5 file produced by
-    :func:`perturbation_gaussian` or :func:`perturbation_sine` and returns
-    the spatial coordinates, time axis, and 3D density array as an
-    in-memory dictionary.
+    Read a density field simulation from an HDF5 file.
+
+    Reads files written by :func:`perturbation_gaussian` or
+    :func:`perturbation_sine`, with datasets ``"R"``, ``"Z"``, ``"t"`` and one
+    2-D snapshot per time step named ``"field_TTTTT"`` (zero-padded frame
+    number).
 
     Parameters
     ----------
     file : str or path-like
-        Path to the HDF5 file containing the simulation output. The file
-        is expected to have the following datasets:
-        
-        - ``'R'``             : 1D R-coordinate array [m].
-        - ``'Z'``             : 1D Z-coordinate array [m].
-        - ``'t'``             : 1D time array [s].
-        - ``'field_TTTTT'``: one 2D density snapshot per time step,
-          with a zero-padded integer suffix (e.g. ``'field_00000'``).
+        Path to the HDF5 file.
 
     Returns
     -------
     dict
-        Dictionary with the following keys:
+        Dictionary with:
 
-        - ``'R'`` : numpy.ndarray, shape (NR,)       — R-coordinate array [m].
-        - ``'Z'`` : numpy.ndarray, shape (NZ,)       — Z-coordinate array [m].
-        - ``'t'`` : numpy.ndarray, shape (Nt,)       — time array [s].
-        - ``'field'`` : numpy.ndarray, shape (Nt, NR, NZ) —
-          density field at each time step [m^-3], stacked in order of the
-          frame number in the ``'field_TTTTT'`` dataset names.
+        * ``"R"``: R coordinates, shape (NR,) [m].
+        * ``"Z"``: Z coordinates, shape (NZ,) [m].
+        * ``"t"``: time axis, shape (Nt,) [s].
+        * ``"field"``: density field at each time step, shape (Nt, NR, NZ)
+          [m^-3], in order of the frame number in the dataset names.
+
+    Raises
+    ------
+    KeyError
+        If the file has no ``"R"``, ``"Z"`` or ``"t"`` dataset.
     """
 
     with h5py.File(file, "r") as f:
