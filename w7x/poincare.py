@@ -459,6 +459,11 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
     ValueError
         If ``r_range`` or ``z_range`` is not a two-element sequence with
         start < end.
+
+    Warns
+    -----
+    UserWarning
+        If a surface contains no points.
     """
     
     _check_surfaces(surfaces)
@@ -479,7 +484,8 @@ def plot_w7x_flux_surfaces(surfaces, magnetic_conf='',
             ax.scatter(r, z, color=colors[i % 8], s=0.2, 
                        label="surface {}".format(i))
         else:
-            print("Surface {} contains no points!".format(i + 1))
+            warnings.warn(f"Surface {i} contains no points and is not "
+                          "plotted.")
 
     ax.set_xlabel("R [m]")
     ax.set_ylabel("z [m]")
@@ -982,6 +988,11 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
         start < end.
     Exception
         If the surfaces have not been labelled with :func:`label_surfaces`.
+
+    Warns
+    -----
+    UserWarning
+        If a surface contains no points.
     """
     
     _check_surfaces(surfaces)
@@ -1006,7 +1017,8 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
             c = [colors[i] for i in surface.points.point_type]
             ax.scatter(r, z, color=c, s=0.2)
         else:
-            print("Surface {} contains no points!".format(i + 1))
+            warnings.warn(f"Surface {i} contains no points and is not "
+                          "plotted.")
     
     for i in range(len(labels)): 
         ax.scatter([], [], s=50, color=colors[i], label=labels[i])

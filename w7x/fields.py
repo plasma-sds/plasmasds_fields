@@ -3,6 +3,7 @@ Density allocation on W7-X flux surfaces and conversion of the surface
 points to scattered and regular 2-D density fields.
 """
 import copy
+import warnings
 import numpy as np
 from . import poincare as pc
 
@@ -47,6 +48,13 @@ def add_density(flt, density_function, keep_unusable=False):
         If ``flt`` is neither a list of FluxSurface instances nor an object
         exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
         or if ``density_function`` is not callable.
+
+    Warns
+    -----
+    UserWarning
+        If some surfaces are not labelled yet;
+        :func:`w7x.poincare.label_surfaces` is then run with its default
+        parameters.
     """
     
     pc._check_surfaces(flt)
@@ -59,8 +67,10 @@ def add_density(flt, density_function, keep_unusable=False):
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     
     if any(s.errors == [None] for s in surfs):
-        print("Warning: no classification happened, "
-              "necessary data obtained by label_surfaces()")
+        warnings.warn(
+            "Some surfaces are not labelled; running label_surfaces() "
+            "first. Call label_surfaces() yourself to control its "
+            "parameters.")
         surfs = pc.label_surfaces(surfs)
     
     usable = list()
