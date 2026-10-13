@@ -316,9 +316,10 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
 
 def import_density_field(file):
     """
-    Reads a density field simulation from an HDF5 file produced by 
-    `perturbation_on_field()` and returns the spatial coordinates,
-    time axis, and 3D density array as an in-memory dictionary.
+    Reads a density field simulation from an HDF5 file produced by
+    :func:`perturbation_gaussian` or :func:`perturbation_sine` and returns
+    the spatial coordinates, time axis, and 3D density array as an
+    in-memory dictionary.
 
     Parameters
     ----------
@@ -337,18 +338,20 @@ def import_density_field(file):
     dict
         Dictionary with the following keys:
 
-        - ``'R'`` : numpy.ndarray, shape (Nx,)       — R-coordinate array [m].
-        - ``'Z'`` : numpy.ndarray, shape (Ny,)       — Z-coordinate array [m].
+        - ``'R'`` : numpy.ndarray, shape (NR,)       — R-coordinate array [m].
+        - ``'Z'`` : numpy.ndarray, shape (NZ,)       — Z-coordinate array [m].
         - ``'t'`` : numpy.ndarray, shape (Nt,)       — time array [s].
-        - ``'field'`` : numpy.ndarray, shape (Nt, Nx, Ny) — 
-          density field at each time step [m^-3], stacked in chronological 
-          order of the ``'field_TTTTT'`` datasets.
+        - ``'field'`` : numpy.ndarray, shape (Nt, NR, NZ) —
+          density field at each time step [m^-3], stacked in order of the
+          frame number in the ``'field_TTTTT'`` dataset names.
     """
 
     with h5py.File(file, "r") as f:
         Z, R = np.array(f["Z"]), np.array(f["R"])
-        field = np.transpose(np.asarray(
-            [f[key] for key in f.keys() if "field_" in key]), [0,1,2])
+        # sort by frame number, not alphabetically (robust beyond 5 digits)
+        keys = sorted((key for key in f.keys() if key.startswith("field_")),
+                      key=lambda key: int(key[len("field_"):]))
+        field = np.asarray([f[key] for key in keys])
         t = np.array(f["t"])
     return {"R": R, "Z": Z, "field": field, "t": t}
         
