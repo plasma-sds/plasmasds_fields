@@ -55,8 +55,8 @@ def perturbation_gaussian(R, Z, field,
         time index t_i. None values are silently skipped.
     perturbation_fwhm : float or list of array-like, length n_filaments
         Full Width at Half Maximum [m] of the filament Gaussian. Used
-        to derive the sigma (sigma = FWHM / 2.535) and the ±3-sigma
-        evaluation window (half-width = FWHM / 2.535 * 3).
+        to derive the sigma (sigma = FWHM / (2 sqrt(2 ln 2)) ≈ FWHM / 2.3548)
+        and the ±3-sigma evaluation window (half-width = 3 sigma).
 
         - If a scalar (``float`` / ``int``), the same FWHM is applied
           to every filament at every time step.
@@ -115,6 +115,7 @@ def perturbation_gaussian(R, Z, field,
                             + ((Z - z0) ** 2) / (2 * sigma_z ** 2)))
 
     _scalar_types = (int, float, np.integer, np.floating)
+    fwhm_to_sigma = 2 * np.sqrt(2 * np.log(2))     # FWHM = 2.3548 sigma
     fwhm_is_scalar = isinstance(perturbation_fwhm, _scalar_types)
     ampl_is_scalar = isinstance(perturbation_ampl, _scalar_types)
     n_f = len(r_trajectory)
@@ -129,8 +130,8 @@ def perturbation_gaussian(R, Z, field,
                             else perturbation_fwhm[f_i][t_i])
                 ampl = (perturbation_ampl if ampl_is_scalar
                         else perturbation_ampl[f_i][t_i])
-                effR = effZ = fwhm_val / 2.535 * 3
-                sigR = sigZ = fwhm_val / 2.535
+                sigR = sigZ = fwhm_val / fwhm_to_sigma
+                effR = effZ = 3 * sigR
                 # create the distribution in the 6 sigma range
                 G_ind_r = np.where((R >= posR - effR) &
                                    (R <= posR + effR))[0]
