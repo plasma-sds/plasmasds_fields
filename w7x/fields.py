@@ -2,10 +2,11 @@ import copy
 import numpy as np
 from . import poincare as pc
 
-def add_density_by_type(flt, density_function):
+def add_density(flt, density_function, keep_unusable=False):
     """
     Assign a density to each surface based on the type of the surface
-    points, obtained prior (for example by polinom fit).
+    points, obtained prior (for example by polinom fit), and keep only the
+    surfaces and points with a usable (positive) density.
     
     If the type is not defined prior, then polinom fit executed automatically.
 
@@ -21,11 +22,18 @@ def add_density_by_type(flt, density_function):
         --> note that ``ProfileInterpolator1D`` extrapolates linearly outside
         its position range, so surfaces outside the profile get extrapolated
         densities.
+    keep_unusable : bool, default False
+        If ``False`` (default), point groups whose assigned density is not
+        positive (zero, negative or NaN) are removed, and surfaces left
+        without points are dropped. If ``True``, all surfaces and points are
+        returned, with only the densities assigned.
 
     Returns
     -------
     list
-        The updated list of surfaces.
+        The surfaces with assigned densities. The densities are written onto
+        the input surfaces; surfaces that lose points are copied before
+        trimming, so the input list keeps all its points.
     
     Raises
     ------
@@ -52,23 +60,41 @@ def add_density_by_type(flt, density_function):
               "necessary data obtained by label_surfaces()")
         surfs = pc.label_surfaces(surfs)
     
+    usable = list()
+    
     for surf in surfs:
         for i in range(len(surf.errors)):
             if surf.errors[i] is None: continue    # no points of this type
             dens = density_function(surf.coeffs[i, -1])
             surf.update_density(float(dens), ind=i)
+        
+        if keep_unusable:
+            usable.append(surf)
+            continue
+        
+        # Keep only the point groups with a usable (positive) density
+        mask = np.zeros(surf.n, dtype=bool)
+        for i, dens in enumerate(surf.density):
+            if dens > 0:
+                mask = mask | (surf.points.point_type == i)
+        
+        if np.all(mask):
+            usable.append(surf)
+        elif np.any(mask):
+            surf = copy.deepcopy(surf)
+            surf.filter_points(mask)
+            usable.append(surf)
                 
-    return surfs
+    return usable
 
-def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
+def filter_surfaces_by_density(flt, density_range=None):
     """
     Filter list of FluxSurface objects by their assigned density.
 
-    By default, surfaces whose ``density`` is exactly ``0`` (e.g. surfaces
-    that were never assigned a density by :func:`add_density_by_type`)
-    are dropped. Optionally a ``[lower, upper]`` density range can be
-    supplied to keep only points in surfaces whose density falls
-    within those bounds.
+    Keeps only the points whose point-type group has a density within
+    ``density_range``; surfaces left without points are dropped. Surfaces
+    and points without a usable density are already removed by
+    :func:`add_density`.
 
     Parameters
     ----------
@@ -76,18 +102,15 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         Either a list of :class:`FluxSurface` instances or an object
         exposing ``flt.poincare_res.surfs``.
     density_range : sequence of float, optional
-        Two-element ``[lower, upper]`` interval on ``surf.points.density``.
-        If ``None`` (default), no upper/lower bound is imposed beyond the
-        ``include_zero`` rule.
-    include_zero : bool, default False
-        If ``False`` (default), points with ``density == 0`` are always
-        dropped. If ``True``, zero-density surfaces are kept (subject to
-        ``density_range`` if it is supplied).
+        Two-element ``[lower, upper]`` interval (inclusive) on the density
+        of each point-type group. If ``None`` (default), all surfaces are
+        kept.
 
     Returns
     -------
     list of FluxSurface
-        The surfaces (unmodified, by reference) that pass the filter.
+        Copies of the surfaces that pass the filter, containing only the
+        points within ``density_range``.
     
     Raises
     ------
@@ -108,7 +131,7 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
     
     if all(not any(s.density) for s in surfs):
         raise Exception("No density assignation happened, "
-                        "run add_density_by_type()!")
+                        "run add_density()!")
     
     filtered_surfs = list()
     
@@ -118,7 +141,8 @@ def filter_surfaces_by_density(flt, density_range=None, include_zero=False):
         
         for i, dens in enumerate(surf.density):
             
-            if not include_zero and dens == 0: continue
+            # skip point types the surface has no points of
+            if surf.errors[i] is None and surf.errors != [None]: continue
             
             if density_range is None or (dens >= density_range[0] and 
                                          dens <= density_range[1]):
@@ -186,7 +210,7 @@ def extract_points(surfaces):
     
     if all(not any(s.density) for s in surfaces):
         raise Exception("No density assignation happened, "
-                        "run add_density_by_type()!")
+                        "run add_density()!")
     
     for surf in surfaces:
         data["x1"] += surf.points.x1.tolist()
