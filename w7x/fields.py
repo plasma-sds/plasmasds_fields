@@ -130,10 +130,9 @@ def filter_surfaces_by_density(flt, density_range=None):
         exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
         or if ``density_range`` has non-numeric elements.
     ValueError
-        If ``density_range`` is not a two-element sequence with start < end, or
-        if it contains negative values.
-    Exception
-        If no density has been assigned (see :func:`add_density`).
+        If ``density_range`` is not a two-element sequence with start < end,
+        if it contains negative values, or if no density has been assigned
+        (see :func:`add_density`).
     """
     
     pc._check_surfaces(flt)
@@ -142,8 +141,8 @@ def filter_surfaces_by_density(flt, density_range=None):
     surfs = flt if isinstance(flt, list) else flt.poincare_res.surfs
     
     if all(not any(s.density) for s in surfs):
-        raise Exception("No density assignment happened, "
-                        "run add_density()!")
+        raise ValueError("No density assigned to the surfaces; run "
+                         "add_density() first.")
     
     filtered_surfs = list()
     
@@ -201,7 +200,7 @@ def extract_points(surfaces):
         If ``surfaces`` is neither a list of FluxSurface instances nor an
         object exposing ``poincare_res.surfs``, or if an element is not a
         FluxSurface.
-    Exception
+    ValueError
         If no density has been assigned (see :func:`add_density`).
     """
     
@@ -214,8 +213,8 @@ def extract_points(surfaces):
             "point_type": list(), "surface_radius": list()}
     
     if all(not any(s.density) for s in surfs):
-        raise Exception("No density assignment happened, "
-                        "run add_density()!")
+        raise ValueError("No density assigned to the surfaces; run "
+                         "add_density() first.")
     
     for surf in surfs:
         data["x1"] += surf.points.x1.tolist()

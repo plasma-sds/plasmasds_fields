@@ -279,6 +279,14 @@ def _check_surfaces(flt):
             f"All elements must be FluxSurface instances; "
             f"element {bad_idx} is {type(surfs[bad_idx]).__name__}." )
 
+def _check_labelled(surfs):
+    """
+    Raise ValueError if any surface has not been labelled.
+    """
+    if any(s.errors == [None] for s in surfs):
+        raise ValueError("Surfaces are not labelled; run "
+                         "label_surfaces() first.")
+
 def _check_scalar(name, value, integer=False, min_value=None, max_value=None,
                   inclusive_min=True, inclusive_max=True, domain=None):
     """
@@ -793,9 +801,8 @@ def filter_surfaces_by_type(flt, point_types=None):
         exposing ``poincare_res.surfs``, or if an element is not a FluxSurface,
         or if ``point_types`` is not a sequence of numbers.
     ValueError
-        If ``point_types`` contains values other than 0, 1 or 2.
-    Exception
-        If the surfaces have not been labelled with :func:`label_surfaces`.
+        If ``point_types`` contains values other than 0, 1 or 2, or if the
+        surfaces have not been labelled with :func:`label_surfaces`.
     """
     
     _check_surfaces(flt)
@@ -806,8 +813,7 @@ def filter_surfaces_by_type(flt, point_types=None):
     else:
         surfs = flt
     
-    if surfs[0].errors == [None]:
-        raise Exception("No classification happened, run label_surfaces()!")
+    _check_labelled(surfs)
     
     filtered_surfs = []
     
@@ -854,9 +860,8 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
         object exposing ``poincare_res.surfs``, or if an element is not a
         FluxSurface, or if ``R_range`` has non-numeric elements.
     ValueError
-        If ``R_range`` is not a two-element sequence with start < end.
-    Exception
-        If the surfaces have not been labelled with :func:`label_surfaces`.
+        If ``R_range`` is not a two-element sequence with start < end, or if
+        the surfaces have not been labelled with :func:`label_surfaces`.
     """
     
     _check_surfaces(surfaces)
@@ -865,8 +870,7 @@ def filter_surfaces_by_radius(surfaces, R_range=None):
     surfs = (surfaces if isinstance(surfaces, list) 
              else surfaces.poincare_res.surfs)
     
-    if surfs[0].errors == [None]:
-        raise Exception("No classification happened, run label_surfaces()!")
+    _check_labelled(surfs)
     
     filtered_surfs = list()
     
@@ -913,9 +917,9 @@ def filter_surfaces_by_error(surfaces, error_range=None):
         object exposing ``poincare_res.surfs``, or if an element is not a
         FluxSurface, or if ``error_range`` has non-numeric elements.
     ValueError
-        If ``error_range`` is not a two-element sequence with start < end.
-    Exception
-        If the surfaces have not been labelled with :func:`label_surfaces`.
+        If ``error_range`` is not a two-element sequence with start < end,
+        or if the surfaces have not been labelled with
+        :func:`label_surfaces`.
     """
     
     _check_surfaces(surfaces)
@@ -924,8 +928,7 @@ def filter_surfaces_by_error(surfaces, error_range=None):
     surfs = (surfaces if isinstance(surfaces, list) 
              else surfaces.poincare_res.surfs)
     
-    if surfs[0].errors == [None]:
-        raise Exception("No classification happened, run label_surfaces()!")
+    _check_labelled(surfs)
     
     filtered_surfs = list()
     
@@ -985,9 +988,8 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
         FluxSurface, or if a range has non-numeric elements.
     ValueError
         If ``r_range`` or ``z_range`` is not a two-element sequence with
-        start < end.
-    Exception
-        If the surfaces have not been labelled with :func:`label_surfaces`.
+        start < end, or if the surfaces have not been labelled with
+        :func:`label_surfaces`.
 
     Warns
     -----
@@ -1002,8 +1004,7 @@ def plot_w7x_island_types(surfaces, labels, magnetic_conf='',
     if not isinstance(surfaces, list):
         surfaces = surfaces.poincare_res.surfs
     
-    if surfaces[0].errors == [None]:
-        raise Exception("No classification happened, run label_surfaces()!")
+    _check_labelled(surfaces)
 
     colors = ["red", "orange", "yellow", "green", "blue",
               "purple", "indigo", "violet"]
