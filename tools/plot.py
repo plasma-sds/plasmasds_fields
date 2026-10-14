@@ -1,3 +1,7 @@
+"""
+Plotting of 2-D and time-dependent (R, Z) fields: contour plots, slices and
+GIF animations.
+"""
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm, Normalize
@@ -15,76 +19,69 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     Contour-plot a scalar field on the (R, Z) plane.
 
     Accepts either a regular grid (as produced by
-    :func:`w7x.fields.make_regular_density_field`) or scattered data
-    (as produced by :func:`w7x.fields.extract_points`):
+    :func:`w7x.fields.make_regular_density_field`) or scattered data (as
+    produced by :func:`w7x.fields.extract_points`); the layout is detected from
+    ``field.ndim``:
 
-    * **Regular**: ``R`` and ``Z`` are 1-D coordinate axes of length
-      ``nR`` and ``nZ`` respectively, ``field`` is 2-D with either
-      ``(nZ, nR)`` or ``(nR, nZ)`` shape; the axis ordering is
-      auto-detected by matching ``field.shape`` against ``R.size`` and
-      ``Z.size`` and the field is transposed if needed so R is always
-      plotted on the x-axis and Z on the y-axis. Plotted with
-      :meth:`~matplotlib.axes.Axes.contourf` /
+    * **Regular**: ``R`` and ``Z`` are 1-D axes of length NR and NZ, and
+      ``field`` is 2-D with shape (NZ, NR) or (NR, NZ). The layout is detected
+      by matching ``field.shape`` against the axis lengths and transposed if
+      needed, so R is always on the x-axis; a square field is taken as (NZ,
+      NR). Plotted with :meth:`~matplotlib.axes.Axes.contourf` /
       :meth:`~matplotlib.axes.Axes.contour`.
-    * **Scattered**: ``R``, ``Z``, ``field`` are 1-D arrays of equal
-      length ``N``. Plotted with
-      :meth:`~matplotlib.axes.Axes.tricontourf` /
+    * **Scattered**: ``R``, ``Z`` and ``field`` are 1-D arrays of equal length
+      N. Plotted with :meth:`~matplotlib.axes.Axes.tricontourf` /
       :meth:`~matplotlib.axes.Axes.tricontour`.
-
-    Detection is automatic from ``field.ndim``.
 
     Parameters
     ----------
     R, Z, field : array_like
-        Scalar field, in either the regular or scattered layout
+        Coordinates [m] and field values, in the regular or scattered layout
         described above.
-    r_range, z_range : sequence of float, optional
-        Two-element ``[min, max]`` ranges on R and Z. If supplied, the
-        field is restricted to this window before plotting (regular
-        grids are sliced; scattered points are masked).
-    levels : int or array_like, optional
-        Number of contour levels, or explicit level values, forwarded
-        to matplotlib. If ``log=True`` and ``levels`` is ``None``, a
-        log-spaced default is generated from the positive field
-        values.
+    r_range, z_range : sequence of float, default None
+        Two-element ``[min, max]`` window on R and Z [m]. The field is
+        restricted to it before plotting (regular grids are sliced, scattered
+        points are masked).
+    levels : int or array_like, default None
+        Number of contour levels or explicit level values, forwarded to
+        matplotlib. If ``log`` is True and ``levels`` is None, 30 log-spaced
+        levels are generated from the positive field values.
     filled : bool, default True
-        ``True`` for filled contours (``contourf`` / ``tricontourf``),
-        ``False`` for line contours (``contour`` / ``tricontour``).
+        If True, draw filled contours (``contourf`` / ``tricontourf``),
+        otherwise line contours (``contour`` / ``tricontour``).
     log : bool, default False
-        If ``True``, use a logarithmic colour normalization
+        If True, use a logarithmic colour normalization
         (:class:`matplotlib.colors.LogNorm`).
-    cmap : str or Colormap, optional
+    cmap : str or Colormap, default None
         Colormap forwarded to matplotlib.
-    ax : matplotlib.axes.Axes, optional
-        Axes to draw on. If ``None``, a new figure and axes are
-        created and ``plt.show()`` is called before returning.
+    ax : matplotlib.axes.Axes, default None
+        Axes to draw on. If None, a new figure is created and ``plt.show()`` is
+        called before returning.
     colorbar : bool, default True
-        If ``True``, attach a colorbar to ``ax``.
-    cbar_label : str, optional
-        Label for the colorbar. Set to ``None`` or ``""`` to omit.
+        If True, attach a colorbar to ``ax``.
+    cbar_label : str, default "Density [m^-3]"
+        Label of the colorbar. None or ``""`` omits it.
     equal_aspect : bool, default True
-        If ``True``, force ``ax.set_aspect("equal")`` so R and Z share
-        the same scale. Set to ``False`` to let matplotlib stretch the
-        plot to fill the axes.
-    title : str, optional
-        Axes title, drawn in bold. Defaults to ``"W7X 2D field plot"``;
-        set to ``None`` or ``""`` to omit.
+        If True, use the same scale for R and Z (``ax.set_aspect("equal")``).
+    title : str, default "W7X 2D density plot"
+        Axes title, drawn in bold. None or ``""`` omits it.
     contour_lines : bool, default False
-        If ``True``, overlay thin black contour lines on top of the
-        plot at the same levels as the (filled) contours, marking the
-        level boundaries explicitly.
-    save_image : str or path-like, optional
-        If given, the figure is saved to this path via
-        :func:`matplotlib.figure.Figure.savefig` before any interactive
-        display. The format is inferred from the extension; pass a
-        ``.png`` path to save as PNG.
+        If True, overlay thin black contour lines at the same levels.
+    save_image : str or path-like, default None
+        If given, the figure is saved to this path before it is shown; the
+        format follows the file extension.
 
     Returns
     -------
-    matplotlib.contour.QuadContourSet or TriContourSet
-        The contour set produced by matplotlib (useful for further
-        customization such as adding a custom colorbar). Use
-        ``cs.axes`` to retrieve the underlying axes.
+    matplotlib.contour.QuadContourSet or matplotlib.tri.TriContourSet
+        The contour set produced by matplotlib; ``cs.axes`` gives the axes.
+
+    Raises
+    ------
+    ValueError
+        If, for a regular grid, ``R`` or ``Z`` is not 1-D or ``field`` does not
+        match their lengths, or if, for scattered data, ``R``, ``Z`` and
+        ``field`` do not have the same shape.
     """
 
 
@@ -197,99 +194,88 @@ def slice_field(R, Z, t, field, field_name,
                   time_resolution='s', figsize=None, dpi=100,
                   plot_3d=False):
     """
-    Plot a 2-D contour slice of a 3-D ``(R, Z, t)`` field.
+    Plot a 2-D slice of a 3-D (R, Z, t) field.
 
-    Exactly one of ``at_t``, ``at_r``, ``at_z`` must be provided;
-    it names both which axis to slice and the coordinate value at
-    which to slice. The nearest sample on that axis is used and
-    the resulting 2-D slice is contoured on the remaining axes:
+    Exactly one of ``at_t``, ``at_r``, ``at_z`` must be given; it selects the
+    axis to slice and the coordinate of the slice (the nearest sample is used).
+    The 2-D slice is plotted on the remaining axes:
 
-    * ``at_t`` -> contour on the ``(R, Z)`` plane (snapshot).
-    * ``at_r`` -> contour on the ``(t, Z)`` plane (time evolution
-      at fixed R).
-    * ``at_z`` -> contour on the ``(t, R)`` plane (time evolution
-      at fixed Z).
+    * ``at_t``: the (R, Z) plane (snapshot).
+    * ``at_r``: the (t, Z) plane (time evolution at fixed R).
+    * ``at_z``: the (t, R) plane (time evolution at fixed Z).
 
-    Inputs follow the same conventions as :func:`animate_field`:
-    HESEL ``(time, Z, R)`` and motion ``(time, X->R, Y->Z)``
-    layouts are both auto-detected by matching axis sizes against
-    ``field.shape``. Pass ``axis_order`` explicitly when sizes
-    collide.
+    The axis layout of ``field`` is detected as in :func:`animate_field`, e.g.
+    (t, Z, R) from :meth:`models.hesel.HESEL.extract_field` or (t, R, Z) from
+    :mod:`models.motion`. Pass ``axis_order`` when the axis lengths are
+    ambiguous.
 
     Parameters
     ----------
     R, Z, t : array_like
-        1-D coordinate axes.
+        1-D coordinate axes: R [m], Z [m], t [s].
     field : array_like
-        3-D scalar field; some permutation of ``(R, Z, t)``.
+        3-D scalar field; some permutation of (R, Z, t).
     field_name : str
-        Name of the field; appears in the plot title alongside the
-        sliced coordinate value.
-    at_t, at_r, at_z : float, optional
-        Coordinate value at which to slice. Exactly one of these
-        must be supplied; the nearest sample on that axis is used.
-        ``at_t`` is interpreted in the units selected by
-        ``time_resolution`` (i.e. seconds for ``'s'``,
-        milliseconds for ``'ms'``, microseconds for ``'us'``);
-        ``at_r`` and ``at_z`` are in meters.
-    r_range, z_range, t_range : sequence of float, optional
-        Two-element ``[min, max]`` crops applied to R, Z and t
-        before slicing. ``r_range`` and ``z_range`` are in meters;
-        ``t_range`` is interpreted in the units selected by
+        Name of the field, shown in the title together with the slice
+        coordinate.
+    at_t, at_r, at_z : float, default None
+        Coordinate of the slice; exactly one must be given. ``at_t`` is in the
+        unit selected by ``time_resolution``, ``at_r`` and ``at_z`` are in [m].
+    r_range, z_range, t_range : sequence of float, default None
+        Two-element ``[min, max]`` crops applied before slicing. ``r_range``
+        and ``z_range`` are in [m], ``t_range`` in the unit selected by
         ``time_resolution``.
-    cbar_label : str, optional
-        Label for the colorbar (e.g. ``"n [m^-3]"`` or
-        ``"T_e [eV]"``).
+    cbar_label : str, default ""
+        Label of the colorbar (e.g. ``"n [m^-3]"`` or ``"T_e [eV]"``).
     levels : int or array_like, default 30
-        Number of contour levels, or explicit level values. When
-        an int, levels are spaced linearly (or logarithmically
-        with ``log=True``) over the slice's ``vmin`` / ``vmax``.
-    cmap : str or Colormap, optional
+        Number of contour levels or explicit level values. An int gives levels
+        spaced linearly (logarithmically if ``log`` is True) between the
+        minimum and maximum of the slice.
+    cmap : str or Colormap, default None
         Colormap forwarded to matplotlib.
     log : bool, default False
-        Use a logarithmic color normalization
+        If True, use a logarithmic colour normalization
         (:class:`~matplotlib.colors.LogNorm`).
-    axis_order : sequence of {"R", "Z", "t"}, optional
-        Explicit labelling of the 3 axes of ``field``.
-    equal_aspect : bool, optional
-        Force equal axis aspect. Defaults to ``True`` when slicing
-        at fixed t (R and Z share units) and ``False`` otherwise
-        (one axis is time).
+    axis_order : sequence of {"R", "Z", "t"}, default None
+        Labels of the three axes of ``field``. If None, they are detected from
+        the axis lengths.
+    equal_aspect : bool, default None
+        If True, use the same scale on both axes. If None, True for slices at
+        fixed t (R and Z share units) and False otherwise.
     contour_lines : bool, default False
-        Overlay thin black contour lines on top of the filled
-        contour at the same levels.
-    ax : matplotlib.axes.Axes, optional
-        Axes to draw on. If ``None``, a new figure is created and
+        If True, overlay thin black contour lines at the same levels.
+    ax : matplotlib.axes.Axes, default None
+        Axes to draw on. If None, a new figure is created and
         :func:`matplotlib.pyplot.show` is called before returning.
-    save_image : str or path-like, optional
-        If given, the figure is saved to this path via
-        :func:`matplotlib.figure.Figure.savefig` before any
-        interactive display.
+    save_image : str or path-like, default None
+        If given, the figure is saved to this path before it is shown.
     time_resolution : {"s", "ms", "us"}, default "s"
-        Unit for the time coordinate. Affects the t-axis ticks
-        when the slice is plotted against time (``at_r`` / ``at_z``
-        cases) and the displayed slice value in the title when
-        slicing at a time (``at_t`` case).
-    figsize : tuple of float, optional
+        Unit of the time coordinate in ``at_t``, ``t_range``, the time axis and
+        the title.
+    figsize : tuple of float, default None
         Forwarded to :func:`matplotlib.pyplot.subplots`.
     dpi : int, default 100
-        Figure DPI.
+        Figure resolution.
     plot_3d : bool, default False
-        If ``True``, render the slice as a 3-D surface
-        (:meth:`matplotlib.mplot3d.Axes3D.plot_surface`) where the
-        vertical axis carries the field values, rather than as a
-        2-D filled contour. ``equal_aspect`` is ignored in this
-        mode, and ``contour_lines=True`` overlays 3-D contour lines
-        on top of the surface.
+        If True, render the slice as a 3-D surface with the field values on the
+        vertical axis instead of a filled contour. ``equal_aspect`` is ignored,
+        and ``contour_lines`` overlays 3-D contour lines.
 
     Returns
     -------
     matplotlib.artist.Artist
-        The plotted artist:
-        :class:`matplotlib.contour.QuadContourSet` for
-        ``plot_3d=False`` or
-        :class:`mpl_toolkits.mplot3d.art3d.Poly3DCollection` for
+        The plotted artist: a :class:`~matplotlib.contour.QuadContourSet`, or a
+        :class:`~mpl_toolkits.mplot3d.art3d.Poly3DCollection` for
         ``plot_3d=True``.
+
+    Raises
+    ------
+    ValueError
+        If not exactly one of ``at_t``, ``at_r``, ``at_z`` is given, if
+        ``time_resolution`` is invalid, if ``R``, ``Z``, ``t`` are not 1-D or
+        ``field`` is not 3-D, if the axis layout is ambiguous or ``axis_order``
+        is invalid, if ``log`` is True and the slice has no positive values, or
+        if ``plot_3d`` is True and ``ax`` is not a 3-D axes.
     """
 
     selectors = [("t", at_t), ("R", at_r), ("Z", at_z)]
@@ -491,114 +477,90 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
                   equal_aspect=True, figsize=None, dpi=100,
                   time_resolution='s'):
     """
-    Animate the time evolution of one or more 2-D ``(R, Z)`` fields
-    as a GIF.
+    Animate the time evolution of one to four (R, Z) fields as a GIF.
 
-    Renders one filled-contour frame per time step on the ``(R, Z)``
-    plane for each input field and writes the result to ``save_path``
-    as an animated GIF via matplotlib's
-    :class:`~matplotlib.animation.PillowWriter`.
+    Renders one filled-contour frame per time step for each field and writes
+    the animation to ``save_path`` with
+    :class:`~matplotlib.animation.PillowWriter`. The fields are shown side by
+    side (1 field: 1 x 1, 2: 1 x 2, 3: 1 x 3, 4: 2 x 2), each with its own
+    colour scale and colorbar; the time stamp is drawn once as the figure
+    title. The colour scale of each field is computed once from its minimum and
+    maximum over the cropped volume, so it stays fixed across frames.
 
-    Up to four fields can be animated side-by-side in a single GIF.
-    All fields must share the same axes (R, Z, t) and therefore the
-    same shape; ``r_range`` / ``z_range`` / ``t_range`` cropping is
-    applied identically to every field. Each field gets its own
-    subplot, color scale and colorbar; the current time stamp is
-    drawn once as a figure-level suptitle.
+    For a single field, pass ``field`` as a 3-D array and ``cbar_label`` as a
+    string; for several fields, pass both as lists of matching length. All
+    fields must have the same shape and share the axes ``R``, ``Z``, ``t``.
 
-    The subplot layout is fixed by the number of fields ``N``:
+    The axis layout is detected by matching the lengths of ``R``, ``Z`` and
+    ``t`` against the field shape, so both layouts used in this project work:
 
-    * ``N == 1``: single ``1 x 1`` plot.
-    * ``N == 2``: ``1 x 2`` (one row, side by side).
-    * ``N == 3``: ``1 x 3`` (one row).
-    * ``N == 4``: ``2 x 2`` grid.
+    * HESEL (:meth:`models.hesel.HESEL.extract_field`): (t, Z, R); pass
+      ``hesel.R_axis``, ``hesel.Z_axis``, ``hesel.time_axis``.
+    * Motion (:func:`models.motion.perturbation_gaussian`,
+      :func:`models.motion.perturbation_sine`,
+      :func:`models.motion.import_density_field`): (t, R, Z); pass
+      ``data["R"]``, ``data["Z"]``, ``data["t"]``, ``data["field"]``.
 
-    Single-field calls remain unchanged: pass ``field`` as a 3-D
-    array and ``field_name`` / ``cbar_label`` as plain strings. For
-    multi-field calls, pass each of ``field``, ``field_name`` and
-    ``cbar_label`` as a list/tuple of matching length (1-4).
-
-    Inputs are accepted in either layout produced in this project,
-    with auto-detection by matching the lengths of ``R``, ``Z`` and
-    ``t`` against the field's shape:
-
-    * **HESEL** (``models.hesel.HESEL.extract_field``): field shape
-      ``(time, Z, R)``, axes ``hesel.R_axis``, ``hesel.Z_axis``,
-      ``hesel.time_axis``.
-    * **Motion** (``models.motion.add_filament_to_field`` /
-      ``models.motion.import_density_field``): dict with ``"X"``,
-      ``"Y"``, ``"t"`` axes and a ``"Z"`` field of shape
-      ``(Nt, Nx, Ny)``; pass ``R=data["X"]``, ``Z=data["Y"]``,
-      ``t=data["t"]``, ``field=data["Z"]``.
-
-    When the three axis sizes are ambiguous (e.g. ``nR == nZ``),
-    pass ``axis_order`` explicitly.
-
-    The per-field color levels and normalization are computed *once*
-    from the global min / max of that field over the cropped volume,
-    so each subplot keeps a stable color mapping across frames.
+    Pass ``axis_order`` when the axis lengths are ambiguous (e.g. NR == NZ).
 
     Parameters
     ----------
     R, Z, t : array_like
-        1-D coordinate axes for the radial, vertical, and temporal
-        dimensions, shared across all fields.
+        1-D coordinate axes shared by all fields: R [m], Z [m], t [s].
     field : array_like or sequence of array_like
-        Either a single 3-D field, or a list/tuple of up to 4 3-D
-        fields with identical shapes. Each field's axes are some
-        permutation of ``(R, Z, t)``.
+        A 3-D field, or a list of up to four 3-D fields of identical shape;
+        each a permutation of (R, Z, t).
     field_name : str
-        Title of the GIF. Drawn once as a figure-level suptitle
-        centered at the top of the animation, regardless of the
-        number of fields. Each subplot is identified by its own
-        ``cbar_label``.
+        Title of the animation, drawn once above all subplots.
     cbar_label : str or sequence of str
-        Label for each field's colorbar (e.g. ``"n [m^-3]"``,
-        ``"T_e [eV]"``). Must have the same length as ``field``.
+        Colorbar label of each field (e.g. ``"n [m^-3]"``); one per field.
     save_path : str or path-like
-        Output path for the animated GIF (e.g. ``"density.gif"``).
-        A ``.gif`` extension is appended automatically if missing.
-    r_range, z_range, t_range : sequence of float, optional
-        Two-element ``[min, max]`` crops applied to R, Z and t (and
-        therefore to every field) before animating. ``r_range`` and
-        ``z_range`` are in meters; ``t_range`` is interpreted in
-        the units selected by ``time_resolution``.
+        Output path of the GIF; ``.gif`` is appended if missing.
+    r_range, z_range, t_range : sequence of float, default None
+        Two-element ``[min, max]`` crops applied to all fields. ``r_range`` and
+        ``z_range`` are in [m], ``t_range`` in the unit selected by
+        ``time_resolution``.
     fps : int, default 10
-        Frames per second for the output GIF.
-    cmap : str or Colormap, optional
-        Colormap forwarded to matplotlib (shared across all
-        subplots).
+        Frames per second of the GIF.
+    cmap : str or Colormap, default None
+        Colormap forwarded to matplotlib, shared by all subplots.
     log : bool, default False
-        If ``True``, use a logarithmic color normalization
-        (:class:`~matplotlib.colors.LogNorm`) for every field. Non-
-        positive entries are clipped per field to that field's
-        positive minimum so ``LogNorm`` does not choke.
+        If True, use a logarithmic colour normalization
+        (:class:`~matplotlib.colors.LogNorm`) for every field; non-positive
+        values are clipped to the field's smallest positive value.
     levels : int or array_like, default 30
-        Number of contour levels, or explicit level values. When an
-        int is given the levels are spaced linearly (or
-        logarithmically when ``log=True``) over each field's own
-        ``vmin`` / ``vmax``.
-    axis_order : sequence of {"R", "Z", "t"}, optional
-        Explicit labelling of the 3 axes of the fields, e.g.
-        ``("t", "Z", "R")`` for HESEL or ``("t", "R", "Z")`` for
-        motion. If ``None``, sizes are matched automatically.
+        Number of contour levels or explicit level values. An int gives levels
+        spaced linearly (logarithmically if ``log`` is True) between each
+        field's minimum and maximum.
+    axis_order : sequence of {"R", "Z", "t"}, default None
+        Labels of the three axes of the fields, e.g. ``("t", "Z", "R")`` for
+        HESEL or ``("t", "R", "Z")`` for motion. If None, they are detected
+        from the axis lengths.
     equal_aspect : bool, default True
-        If ``True``, force equal R/Z visual scale on every subplot.
-    figsize : tuple of float, optional
-        Forwarded to :func:`matplotlib.pyplot.subplots`. Defaults
-        to ``(6 * ncols, 4.5 * nrows)``, sized to the number of
-        subplots.
+        If True, use the same scale for R and Z on every subplot.
+    figsize : tuple of float, default None
+        Forwarded to :func:`matplotlib.pyplot.subplots`. If None, ``(6 * ncols,
+        4.5 * nrows)`` for the subplot layout.
     dpi : int, default 100
-        Resolution of the saved GIF.
+        Resolution of the GIF.
     time_resolution : {"s", "ms", "us"}, default "s"
-        Unit used to display the time stamp in the suptitle. The
-        time values are multiplied by ``1``, ``1e3`` or ``1e6``
-        respectively and formatted with two decimal places.
+        Unit of ``t_range`` and of the time stamp in the title (two decimal
+        places).
 
     Returns
     -------
     matplotlib.animation.FuncAnimation
-        The constructed animation (already saved to ``save_path``).
+        The animation, already saved to ``save_path``.
+
+    Raises
+    ------
+    ValueError
+        If ``time_resolution`` is invalid, if there are not 1-4 fields or the
+        number of ``cbar_label`` entries differs, if ``R``, ``Z``, ``t`` are
+        not 1-D or a field is not 3-D or differs in shape, if the axis layout
+        is ambiguous or ``axis_order`` is invalid, if fewer than two R or Z
+        samples or no time step remain after cropping, or if ``log`` is True
+        and a field has no positive values.
     """
 
     save_path = Path(save_path)
@@ -614,6 +576,10 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
     time_scale = time_scales[time_resolution]
 
     def _as_list(x):
+        """
+        Wrap a single value in a list; return lists and tuples as lists.
+        """
+
         return list(x) if isinstance(x, (list, tuple)) else [x]
 
     fields = [np.asarray(f) for f in _as_list(field)]
@@ -754,6 +720,10 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
     fig.tight_layout(rect=[0, 0, 1, 0.95])
 
     def update(frame):
+        """
+        Draw the contour plots of all fields for animation frame ``frame``.
+        """
+
         for ax, f_data, norm, lvls in zip(
             axes_list, fields, norms, levels_list
         ):
@@ -782,6 +752,10 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
 
     last_pct = -1
     def _progress(current, total):
+        """
+        Print a text progress bar while the GIF is rendered.
+        """
+
         nonlocal last_pct
         pct = int((current + 1) / total * 100)
         if pct != last_pct:
