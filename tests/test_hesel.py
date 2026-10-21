@@ -1,4 +1,4 @@
-"""Unit tests for the HESEL class in models.hesel."""
+"""Unit tests for models.hesel: the HESEL class and expand_hesel."""
 import os
 import pathlib
 import tempfile
@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from models.hesel import HESEL
+from models.hesel import HESEL, expand_hesel
 from tests.helpers import (HESEL_R, HESEL_Z, HESEL_T, HESEL_FIELDS,
                            hesel_values, write_hesel_file)
 
@@ -167,6 +167,133 @@ class HeselFileHandlingTest(HeselTestCase):
         self.assertIn(f"R={HESEL_R.size}", text)
         self.assertIn(f"Z={HESEL_Z.size}", text)
         self.assertIn(f"time={HESEL_T.size}", text)
+
+
+class ExpandHeselTest(unittest.TestCase):
+    """expand_hesel on the synthetic (t, Z, R) density and its 2-D
+    (Z, R) snapshot."""
+
+    def setUp(self):
+        self.field = DENSITY.copy()               # (t, Z, R)
+        self.snapshot = DENSITY[0].copy()         # (Z, R)
+
+    def test_defaults_return_input_unchanged(self):
+        field, R, Z = expand_hesel(self.field.tolist(), HESEL_R.tolist(),
+                                   HESEL_Z.tolist())
+        for array in (field, R, Z):
+            self.assertIsInstance(array, np.ndarray)
+        np.testing.assert_allclose(field, DENSITY)
+        np.testing.assert_allclose(R, HESEL_R)
+        np.testing.assert_allclose(Z, HESEL_Z)
+
+    def test_input_is_not_modified(self):
+        expand_hesel(self.field, HESEL_R, HESEL_Z, n_z=2, n_sol=3, n_edge=2)
+        np.testing.assert_array_equal(self.field, DENSITY)
+
+    def test_edge_extension(self):
+        n = 3
+        field, R, Z = expand_hesel(self.field, HESEL_R, HESEL_Z, n_edge=n)
+        self.assertEqual(field.shape, (HESEL_T.size, HESEL_Z.size,
+                                       HESEL_R.size + n))
+        # filled per frame with the Z-average of the innermost R column
+        fill = DENSITY[:, :, 0].mean(axis=1)               # (t,)
+        np.testing.assert_allclose(field[:, :, :n],
+                                   np.broadcast_to(fill[:, None, None],
+                                                   (HESEL_T.size,
+                                                    HESEL_Z.size, n)))
+        np.testing.assert_allclose(field[:, :, n:], DENSITY)
+        np.testing.assert_allclose(R[:n],
+                                   HESEL_R[0] - DR * np.arange(n, 0, -1))
+        np.testing.assert_allclose(R[n:], HESEL_R)
+        np.testing.assert_allclose(Z, HESEL_Z)
+
+    def test_sol_extension(self):
+        n = 4
+        field, R, Z = expand_hesel(self.field, HESEL_R, HESEL_Z, n_sol=n)
+        self.assertEqual(field.shape, (HESEL_T.size, HESEL_Z.size,
+                                       HESEL_R.size + n))
+        # filled per frame with the Z-average of the outermost R column
+        fill = DENSITY[:, :, -1].mean(axis=1)              # (t,)
+        np.testing.assert_allclose(field[:, :, -n:],
+                                   np.broadcast_to(fill[:, None, None],
+                                                   (HESEL_T.size,
+                                                    HESEL_Z.size, n)))
+        np.testing.assert_allclose(field[:, :, :-n], DENSITY)
+        np.testing.assert_allclose(R[-n:],
+                                   HESEL_R[-1] + DR * np.arange(1, n + 1))
+        np.testing.assert_allclose(R[:-n], HESEL_R)
+
+    def test_edge_and_sol_together(self):
+        field, R, _ = expand_hesel(self.field, HESEL_R, HESEL_Z,
+                                   n_edge=2, n_sol=3)
+        self.assertEqual(field.shape[-1], HESEL_R.size + 5)
+        np.testing.assert_allclose(field[:, :, 2:-3], DENSITY)
+        np.testing.assert_allclose(field[:, 0, 0],
+                                   DENSITY[:, :, 0].mean(axis=1))
+        np.testing.assert_allclose(field[:, 0, -1],
+                                   DENSITY[:, :, -1].mean(axis=1))
+        np.testing.assert_allclose(np.diff(R), DR)
+
+    def test_periodic_z_stacking(self):
+        n_z = 3
+        field, R, Z = expand_hesel(self.field, HESEL_R, HESEL_Z, n_z=n_z)
+        self.assertEqual(field.shape, (HESEL_T.size, n_z * HESEL_Z.size,
+                                       HESEL_R.size))
+        for i in range(n_z):
+            with self.subTest(copy=i):
+                np.testing.assert_allclose(
+                    field[:, i * HESEL_Z.size:(i + 1) * HESEL_Z.size, :],
+                    DENSITY)
+        # the stacked Z axis continues with the original spacing
+        self.assertEqual(Z.size, n_z * HESEL_Z.size)
+        np.testing.assert_allclose(Z[:HESEL_Z.size], HESEL_Z)
+        np.testing.assert_allclose(np.diff(Z), DZ)
+        np.testing.assert_allclose(R, HESEL_R)
+
+    def test_all_expansions_together(self):
+        field, R, Z = expand_hesel(self.field, HESEL_R, HESEL_Z,
+                                   n_z=2, n_sol=3, n_edge=2)
+        self.assertEqual(field.shape, (HESEL_T.size, 2 * HESEL_Z.size,
+                                       HESEL_R.size + 5))
+        self.assertEqual((R.size, Z.size), (HESEL_R.size + 5,
+                                            2 * HESEL_Z.size))
+        # the radial extensions are stacked along Z as well
+        np.testing.assert_allclose(field[:, :HESEL_Z.size, :],
+                                   field[:, HESEL_Z.size:, :])
+
+    def test_two_dimensional_snapshot(self):
+        field, R, Z = expand_hesel(self.snapshot, HESEL_R, HESEL_Z,
+                                   n_z=2, n_sol=1, n_edge=1)
+        self.assertEqual(field.shape, (2 * HESEL_Z.size, HESEL_R.size + 2))
+        self.assertAlmostEqual(field[0, 0] / self.snapshot[:, 0].mean(), 1.0)
+        self.assertAlmostEqual(field[0, -1] / self.snapshot[:, -1].mean(),
+                               1.0)
+        np.testing.assert_allclose(field[:HESEL_Z.size, 1:-1], self.snapshot)
+
+    def test_custom_axes(self):
+        # the same field stored as (t, R, Z) gives the transposed result
+        expected, R_ref, Z_ref = expand_hesel(self.field, HESEL_R, HESEL_Z,
+                                              n_z=2, n_sol=2, n_edge=1)
+        field, R, Z = expand_hesel(np.swapaxes(self.field, 1, 2),
+                                   HESEL_R, HESEL_Z, n_z=2, n_sol=2,
+                                   n_edge=1, r_axis=1, z_axis=2)
+        np.testing.assert_allclose(field, np.swapaxes(expected, 1, 2))
+        np.testing.assert_allclose(R, R_ref)
+        np.testing.assert_allclose(Z, Z_ref)
+
+    def test_invalid_counts(self):
+        cases = {
+            "n_z not an integer": dict(n_z=2.0),
+            "n_sol not an integer": dict(n_sol=1.5),
+            "n_edge not an integer": dict(n_edge="2"),
+            "n_z zero": dict(n_z=0),
+            "n_sol negative": dict(n_sol=-1),
+            "n_edge negative": dict(n_edge=-2),
+        }
+        for name, kwargs in cases.items():
+            with self.subTest(case=name):
+                with self.assertRaises(ValueError):
+                    expand_hesel(self.field, HESEL_R, HESEL_Z, **kwargs)
 
 
 if __name__ == "__main__":
