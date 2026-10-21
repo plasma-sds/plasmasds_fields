@@ -3,3 +3,4 @@ scipy>=1.10
 matplotlib>=3.7
 h5py>=3.8
 Pillow>=9.4
+plasmasds_utility>=0.1,<0.2
