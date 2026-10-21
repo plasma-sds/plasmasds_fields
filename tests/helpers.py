@@ -1,9 +1,35 @@
 """
-Shared helpers for the unit tests: a small synthetic HESEL output file, so
-the tests run without the real HESEL data.
+Shared helpers for the unit tests: the test datasets on the plasma-sds data
+server, and a small synthetic HESEL output file, so the tests run without
+the real HESEL data.
 """
+import unittest
+
 import h5py
 import numpy as np
+from plasmasds_utility import DataClient, PlasmasdsUtilityError
+
+
+# ---------------------------------------------------------------- test data
+# Public test datasets of plasmasds_fields on the plasma-sds data server,
+# downloaded with plasmasds_utility on first use and cached locally.
+
+DATA = DataClient("plasmasds_fields")
+TEST_POINCARE = "test_dataset/test_poincare.xml"   # W7-X field-line tracer
+TEST_PROFILE = "test_dataset/test_profile.txt"     # density profile
+
+
+def get_test_data(key):
+    """
+    Return the local path of a public test dataset, downloading it if needed.
+
+    Skips the calling test (``unittest.SkipTest``) if the file cannot be
+    fetched, for example without network access.
+    """
+    try:
+        return DATA.get(key, private=False)
+    except PlasmasdsUtilityError as error:
+        raise unittest.SkipTest(f"test dataset {key} not available: {error}")
 
 
 # ---------------------------------------------------------------- HESEL HDF5
