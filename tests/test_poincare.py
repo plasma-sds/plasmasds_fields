@@ -1,9 +1,13 @@
 """Unit tests for w7x.poincare."""
+import types
 import unittest
+import xml.etree.ElementTree as ET
 
 import numpy as np
 
-from w7x.poincare import Points, FluxSurface, Range
+from tests.helpers import get_test_data, TEST_POINCARE
+from w7x.poincare import (Points, FluxSurface, Range, load_w7x_flux_surfaces,
+                          filter_surfaces_by_range)
 
 
 def make_surface(r, z, phi0=0.0, **kwargs):
@@ -119,6 +123,109 @@ class RangeTest(unittest.TestCase):
         surfaces = [make_surface([6.1, 6.2], [0.0, 0.1], density=4e18),
                     make_surface([6.2, 6.3], [0.0, 0.1], density=1e19)]
         self.assertEqual(Range(surfaces).density, [4e18, 1e19])
+
+
+# ======================================================================
+# Batch 2: loading and range filter
+# ======================================================================
+
+class LoadTest(unittest.TestCase):
+    """load_w7x_flux_surfaces on the public test dataset, compared with the
+    XML file read directly."""
+
+    @classmethod
+    def setUpClass(cls):
+        path = get_test_data(TEST_POINCARE)
+        cls.surfaces = load_w7x_flux_surfaces(path)
+        cls.xml_surfaces = list(ET.parse(path).getroot())
+
+    def xml_values(self, surf_element, name):
+        """All values of one coordinate of a surface element, as floats."""
+        return [float(e.text) for e in surf_element.iter()
+                if e.tag.endswith("}" + name)]
+
+    def test_one_surface_per_xml_entry(self):
+        self.assertEqual(len(self.surfaces), len(self.xml_surfaces))
+        for surf in self.surfaces:
+            self.assertIsInstance(surf, FluxSurface)
+
+    def test_phi0(self):
+        for surf, element in zip(self.surfaces, self.xml_surfaces):
+            self.assertEqual(surf.phi0, self.xml_values(element, "phi0")[0])
+
+    def test_coordinates(self):
+        for i in (0, len(self.surfaces) // 2, len(self.surfaces) - 1):
+            surf, element = self.surfaces[i], self.xml_surfaces[i]
+            with self.subTest(surface=i):
+                for name in ("x1", "x2", "x3"):
+                    np.testing.assert_array_equal(
+                        getattr(surf.points, name),
+                        self.xml_values(element, name))
+
+    def test_point_counts(self):
+        counts = [len(self.xml_values(e, "x1")) for e in self.xml_surfaces]
+        self.assertEqual([s.n for s in self.surfaces], counts)
+
+
+class FilterByRangeTest(unittest.TestCase):
+    """Coordinates are multiples of 1/8, exact in floating point, so that
+    points can lie exactly on a bound."""
+
+    RADII = (6.0, 6.125, 6.25, 6.375)
+    Z = (-0.25, -0.125, 0.0, 0.125, 0.25)
+
+    def setUp(self):
+        self.surfaces = [make_surface(np.full(len(self.Z), r), self.Z)
+                         for r in self.RADII]
+
+    def test_r_and_z_bounds_inclusive(self):
+        kept = filter_surfaces_by_range(self.surfaces, r_range=[6.125, 6.25],
+                                        z_range=[-0.125, 0.125])
+        self.assertEqual([s.points.r[0] for s in kept], [6.125, 6.25])
+        for surf in kept:
+            np.testing.assert_array_equal(surf.points.z, [-0.125, 0.0, 0.125])
+
+    def test_none_ranges_keep_all(self):
+        kept = filter_surfaces_by_range(self.surfaces)
+        self.assertEqual([s.n for s in kept], [5, 5, 5, 5])
+
+    def test_surf_range(self):
+        kept = filter_surfaces_by_range(self.surfaces, surf_range=[1, 3])
+        self.assertEqual([s.points.r[0] for s in kept], [6.125, 6.25])
+        clipped = filter_surfaces_by_range(self.surfaces, surf_range=[2, 10])
+        self.assertEqual([s.points.r[0] for s in clipped], [6.25, 6.375])
+
+    def test_returns_copies(self):
+        kept = filter_surfaces_by_range(self.surfaces, z_range=[0.0, 0.25])
+        self.assertEqual([s.n for s in self.surfaces], [5, 5, 5, 5])
+        for new, old in zip(kept, self.surfaces):
+            self.assertIsNot(new, old)
+
+    def test_empty_surfaces_dropped(self):
+        surfaces = self.surfaces + [make_surface([], [])]
+        kept = filter_surfaces_by_range(surfaces, r_range=[6.2, 6.3])
+        self.assertEqual([s.points.r[0] for s in kept], [6.25])
+        self.assertEqual(filter_surfaces_by_range(surfaces,
+                                                  r_range=[7.0, 8.0]), [])
+
+    def test_accepts_poincare_res_object(self):
+        flt = types.SimpleNamespace(
+            poincare_res=types.SimpleNamespace(surfs=self.surfaces))
+        kept = filter_surfaces_by_range(flt, r_range=[6.125, 6.25])
+        self.assertEqual(len(kept), 2)
+
+    def test_invalid_ranges(self):
+        value_errors = {"reversed r_range": dict(r_range=[6.25, 6.125]),
+                        "three-element z_range": dict(z_range=[0, 1, 2]),
+                        "negative surf_range": dict(surf_range=[-1, 2])}
+        type_errors = {"non-numeric r_range": dict(r_range=["a", "b"]),
+                       "non-integer surf_range": dict(surf_range=[0.5, 2])}
+        for errors, exception in ((value_errors, ValueError),
+                                  (type_errors, TypeError)):
+            for name, kwargs in errors.items():
+                with self.subTest(case=name):
+                    with self.assertRaises(exception):
+                        filter_surfaces_by_range(self.surfaces, **kwargs)
 
 
 if __name__ == "__main__":
