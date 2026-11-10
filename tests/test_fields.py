@@ -3,7 +3,8 @@ import unittest
 
 import numpy as np
 
-from w7x.fields import add_density, filter_surfaces_by_density
+from w7x.fields import (add_density, filter_surfaces_by_density,
+                        extract_points, make_regular_density_field)
 from w7x.poincare import FluxSurface, label_surfaces
 
 
@@ -157,6 +158,113 @@ class FilterByDensityTest(unittest.TestCase):
             with self.subTest(case=name):
                 with self.assertRaises(exception):
                     filter_surfaces_by_density(self.surfaces, density_range)
+
+
+class ExtractPointsTest(unittest.TestCase):
+
+    def setUp(self):
+        regular, island = hand_labelled_surfaces()
+        regular.density = [1.8e19, 0, 0]
+        island.density = [0, 5e17, 8e18]
+        self.surfaces = [regular, island]
+
+    def test_keys_and_shapes(self):
+        data = extract_points(self.surfaces)
+        self.assertEqual(set(data), {"x1", "x2", "x3", "r", "z", "density",
+                                     "point_type", "surface_radius"})
+        for key, values in data.items():
+            with self.subTest(key=key):
+                self.assertIsInstance(values, np.ndarray)
+                self.assertEqual(values.shape, (8,))
+
+    def test_values_per_point(self):
+        data = extract_points(self.surfaces)
+        np.testing.assert_allclose(data["r"], [6.125] * 4 + [6.375] * 2
+                                   + [6.25] * 2)
+        np.testing.assert_allclose(data["x1"], data["r"])
+        np.testing.assert_array_equal(data["x2"], 0.0)
+        np.testing.assert_allclose(data["z"], [-0.125, 0.0, 0.125, 0.25]
+                                   + [-0.125, 0.125] * 2)
+        np.testing.assert_array_equal(data["x3"], data["z"])
+        np.testing.assert_array_equal(data["point_type"],
+                                      [0, 0, 0, 0, 1, 1, 2, 2])
+        # density and surface radius of each point's own point-type group
+        np.testing.assert_allclose(data["density"], [1.8e19] * 4
+                                   + [5e17] * 2 + [8e18] * 2)
+        np.testing.assert_allclose(data["surface_radius"], data["r"])
+
+    def test_no_density_assigned(self):
+        with self.assertRaisesRegex(ValueError, "No density assigned"):
+            extract_points(hand_labelled_surfaces())
+
+
+class RegularDensityFieldTest(unittest.TestCase):
+    """Coordinates and spacings are multiples of 1/16, exact in floating
+    point."""
+
+    def setUp(self):
+        # corners and centre of the square R 6.0-6.25 m, Z -0.25-0.25 m;
+        # the density rises along R only
+        self.r = np.array([6.0, 6.25, 6.0, 6.25, 6.125])
+        self.z = np.array([-0.25, -0.25, 0.25, 0.25, 0.0])
+        self.density = 1e19 * (1 + 4 * (self.r - 6.0))
+
+    def test_grid_axes_and_layout(self):
+        R, Z, grid = make_regular_density_field(self.r, self.z, self.density,
+                                                dr=0.0625, dz=0.0625)
+        np.testing.assert_array_equal(R, np.arange(5) * 0.0625 + 6.0)
+        np.testing.assert_array_equal(Z, np.arange(9) * 0.0625 - 0.25)
+        self.assertEqual(grid.shape, (Z.size, R.size))      # (NZ, NR)
+        # grid[i, j] belongs to (R[j], Z[i]): constant along Z, rising in R
+        np.testing.assert_allclose(grid, np.broadcast_to(grid[0], grid.shape))
+        self.assertTrue(np.all(np.diff(grid[0]) > 0))
+
+    def test_limits(self):
+        for limits in ([6.0625, 6.1875], (6.0625, 6.1875),
+                       np.array([6.0625, 6.1875])):
+            with self.subTest(type=type(limits).__name__):
+                R, Z, grid = make_regular_density_field(
+                    self.r, self.z, self.density, dr=0.0625, dz=0.125,
+                    r_limits=limits, z_limits=[-0.125, 0.125])
+                np.testing.assert_array_equal(R, [6.0625, 6.125, 6.1875])
+                np.testing.assert_array_equal(Z, [-0.125, 0.0, 0.125])
+                self.assertEqual(grid.shape, (3, 3))
+
+    def test_nearest_fill_and_floor(self):
+        # data only in the lower-left triangle of the square, constant 5e18
+        r, z = np.array([6.0, 6.25, 6.0]), np.array([-0.25, -0.25, 0.25])
+        density = np.full(3, 5e18)
+        kwargs = dict(dr=0.0625, dz=0.0625, r_limits=[6.0, 6.25],
+                      z_limits=[-0.25, 0.25], bottom_value=1e16)
+        _, _, filled = make_regular_density_field(r, z, density, **kwargs)
+        _, _, floored = make_regular_density_field(r, z, density,
+                                                   fill_with_nearest=False,
+                                                   **kwargs)
+        # corner (6.25, 0.25) lies outside the data, (6.0, -0.25) inside
+        self.assertEqual(filled[-1, -1], 5e18)
+        self.assertEqual(floored[-1, -1], 1e16)
+        self.assertEqual(floored[0, 0], 5e18)
+        # values below the floor are raised to it
+        _, _, low = make_regular_density_field(r, z, np.full(3, 1e15),
+                                               **kwargs)
+        np.testing.assert_array_equal(low, 1e16)
+
+    def test_invalid_input(self):
+        cases = [("dr zero", dict(dr=0), ValueError),
+                 ("dz negative", dict(dz=-0.1), ValueError),
+                 ("bottom_value negative", dict(bottom_value=-1.0),
+                  ValueError),
+                 ("reversed r_limits", dict(r_limits=[6.25, 6.0]),
+                  ValueError)]
+        for name, kwargs, exception in cases:
+            with self.subTest(case=name):
+                with self.assertRaises(exception):
+                    make_regular_density_field(self.r, self.z, self.density,
+                                               **kwargs)
+        with self.subTest(case="non-numeric r"):
+            with self.assertRaises(TypeError):
+                make_regular_density_field(["a", "b", "c"], self.z[:3],
+                                           self.density[:3])
 
 
 if __name__ == "__main__":
