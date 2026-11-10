@@ -1,13 +1,14 @@
 """Unit tests for w7x.poincare."""
 import types
 import unittest
+import warnings
 import xml.etree.ElementTree as ET
 
 import numpy as np
 
 from tests.helpers import get_test_data, TEST_POINCARE
 from w7x.poincare import (Points, FluxSurface, Range, load_w7x_flux_surfaces,
-                          filter_surfaces_by_range)
+                          filter_surfaces_by_range, label_surfaces)
 
 
 def make_surface(r, z, phi0=0.0, **kwargs):
@@ -226,6 +227,162 @@ class FilterByRangeTest(unittest.TestCase):
                 with self.subTest(case=name):
                     with self.assertRaises(exception):
                         filter_surfaces_by_range(self.surfaces, **kwargs)
+
+
+# ======================================================================
+# Batch 3: label_surfaces
+# ======================================================================
+
+ISLAND_CENTRE = 6.236          # R of the synthetic island centre [m]
+
+
+def regular_surface(n=20):
+    """Points on the parabola R = 6.2 - 0.5 Z**2, |Z| <= 0.2 m."""
+    z = np.linspace(-0.2, 0.2, n)
+    return make_surface(6.2 - 0.5 * z**2, z)
+
+
+def island_surface(n=200, half_width=0.012, half_height=0.15):
+    """Points on an ellipse around (ISLAND_CENTRE, 0)."""
+    theta = np.linspace(0, 2 * np.pi, n, endpoint=False)
+    return make_surface(ISLAND_CENTRE + half_width * np.cos(theta),
+                        half_height * np.sin(theta))
+
+
+def label_quietly(surfaces, **kwargs):
+    """label_surfaces, returning the labelled surfaces and any warnings."""
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        labelled = label_surfaces(surfaces, **kwargs)
+    return labelled, caught
+
+
+def is_island(surf):
+    return surf.errors[1] is not None
+
+
+class LabelSurfacesTest(unittest.TestCase):
+
+    def test_regular_surface(self):
+        surf = label_surfaces([regular_surface()])[0]
+        np.testing.assert_array_equal(surf.points.point_type, 0)
+        self.assertLess(surf.errors[0], 1e-12)
+        self.assertEqual(surf.errors[1:], [None, None])
+        np.testing.assert_allclose(surf.coeffs[0], [-0.5, 0.0, 6.2],
+                                   atol=1e-10)
+        np.testing.assert_array_equal(surf.coeffs[1:], 0.0)
+        self.assertEqual(surf.density, [0, 0, 0])
+
+    def test_island_by_point_count(self):
+        surf = label_surfaces([island_surface(n=200)])[0]
+        point_type = surf.points.point_type
+        self.assertTrue(is_island(surf))
+        self.assertIsNone(surf.errors[0])
+        self.assertEqual((np.count_nonzero(point_type == 1),
+                          np.count_nonzero(point_type == 2)), (100, 100))
+        self.assertGreater(surf.points.r[point_type == 1].mean(),
+                           ISLAND_CENTRE)
+        self.assertLess(surf.points.r[point_type == 2].mean(), ISLAND_CENTRE)
+        self.assertAlmostEqual(surf.coeffs[1, -1], ISLAND_CENTRE + 0.012,
+                               delta=1e-3)
+        self.assertAlmostEqual(surf.coeffs[2, -1], ISLAND_CENTRE - 0.012,
+                               delta=1e-3)
+
+    def test_island_by_fit_error(self):
+        # 40 points (< limit_number), whole-surface fit error about 0.021
+        surf = label_surfaces([island_surface(n=40, half_width=0.03)])[0]
+        self.assertTrue(is_island(surf))
+        self.assertEqual(set(np.unique(surf.points.point_type)), {1, 2})
+
+    def test_limits_change_classification(self):
+        cases = {
+            "many points, high limits": (island_surface(n=200),
+                                         dict(limit_number=1000)),
+            "large error, high limit": (island_surface(n=40, half_width=0.03),
+                                        dict(limit_error=1.0)),
+            "error below default limit": (island_surface(n=40,
+                                                         half_width=0.02),
+                                          dict()),
+        }
+        for name, (surf, kwargs) in cases.items():
+            with self.subTest(case=name):
+                labelled = label_surfaces([surf], **kwargs)[0]
+                self.assertFalse(is_island(labelled))
+                np.testing.assert_array_equal(labelled.points.point_type, 0)
+
+    def test_side_errors_from_own_points(self):
+        # regression #27: side errors were computed over all points
+        surf = label_surfaces([island_surface(n=200)])[0]
+        r, z, point_type = surf.points.r, surf.points.z, surf.points.point_type
+        for side in (1, 2):
+            with self.subTest(side=side):
+                own = point_type == side
+                rms = np.sqrt(np.mean(
+                    (r[own] - np.polyval(surf.coeffs[side], z[own]))**2))
+                self.assertAlmostEqual(surf.errors[side], rms)
+
+    def test_few_points_reduced_order(self):
+        # regression: a single point got a fitted radius of about 2.09 m
+        (single, pair), caught = label_quietly(
+            [make_surface([6.25], [0.3]),
+             make_surface([6.20, 6.22], [-0.1, 0.1])])
+        self.assertEqual(caught, [])
+        np.testing.assert_allclose(single.coeffs[0], [0.0, 0.0, 6.25])
+        self.assertAlmostEqual(single.errors[0], 0.0)
+        np.testing.assert_allclose(pair.coeffs[0], [0.0, 0.1, 6.21])
+        self.assertAlmostEqual(pair.errors[0], 0.0)
+
+    def test_order_parameter(self):
+        z = np.linspace(-0.2, 0.2, 30)
+        cubic = [0.3, -0.5, 0.1, 6.2]                 # highest power first
+        for order in (3, 4):
+            with self.subTest(order=order):
+                surf = label_surfaces([make_surface(np.polyval(cubic, z), z)],
+                                      order=order)[0]
+                self.assertEqual(surf.coeffs.shape, (3, order + 1))
+                self.assertAlmostEqual(surf.coeffs[0, -1], 6.2, places=8)
+                if order == 3:
+                    np.testing.assert_allclose(surf.coeffs[0], cubic,
+                                               atol=1e-8)
+
+    def test_window_warning(self):
+        inside = make_surface([6.1, 6.2, 6.3], [-1.0, 0.0, 1.0])
+        _, caught = label_quietly([inside])
+        self.assertEqual(caught, [])
+        cases = {"R < 6.1": make_surface([6.0, 6.2], [0.0, 0.1]),
+                 "|Z| > 1.0": make_surface([6.2, 6.2], [0.0, 1.2])}
+        for text, surf in cases.items():
+            with self.subTest(case=text):
+                with self.assertWarns(UserWarning) as context:
+                    label_surfaces([surf])
+                self.assertIn(text, str(context.warning))
+
+    def test_labels_in_place(self):
+        surfaces = [regular_surface(), island_surface()]
+        labelled = label_surfaces(surfaces)
+        for new, old in zip(labelled, surfaces):
+            self.assertIs(new, old)
+        self.assertTrue(is_island(surfaces[1]))
+
+    def test_empty_list(self):
+        self.assertEqual(label_surfaces([]), [])
+
+    def test_invalid_parameters(self):
+        type_errors = {"limit_error as string": dict(limit_error="0.01"),
+                       "limit_number as float": dict(limit_number=100.0),
+                       "order as float": dict(order=2.5)}
+        value_errors = {"negative limit_error": dict(limit_error=-0.1),
+                        "negative limit_number": dict(limit_number=-1),
+                        "negative order": dict(order=-1)}
+        for errors, exception in ((type_errors, TypeError),
+                                  (value_errors, ValueError)):
+            for name, kwargs in errors.items():
+                with self.subTest(case=name):
+                    with self.assertRaises(exception):
+                        label_surfaces([regular_surface()], **kwargs)
+        with self.subTest(case="surfaces as string"):
+            with self.assertRaises(TypeError):
+                label_surfaces("surfaces")
 
 
 if __name__ == "__main__":
