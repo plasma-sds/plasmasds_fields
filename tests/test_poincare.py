@@ -7,11 +7,11 @@ import xml.etree.ElementTree as ET
 import numpy as np
 
 from tests.helpers import get_test_data, TEST_POINCARE
-from w7x.poincare import (Points, FluxSurface, Range, load_w7x_flux_surfaces,
-                          filter_surfaces_by_range, label_surfaces,
-                          filter_surfaces_by_type, filter_surfaces_by_radius,
-                          filter_surfaces_by_error, _check_surfaces,
-                          _check_scalar, _check_range)
+from plasmasds_fields.w7x.poincare import (
+    Points, FluxSurface, Range, load_w7x_flux_surfaces,
+    filter_surfaces_by_range, label_surfaces, filter_surfaces_by_type,
+    filter_surfaces_by_radius, filter_surfaces_by_error, _check_surfaces,
+    _check_scalar, _check_range)
 
 
 def make_surface(r, z, phi0=0.0, **kwargs):

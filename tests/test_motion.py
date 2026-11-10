@@ -6,9 +6,10 @@ import unittest
 import h5py
 import numpy as np
 
-from models.motion import (perturbation_gaussian, perturbation_sine,
-                           import_density_field)
-from models.profilegen import create_2d_profile
+from plasmasds_fields.models.motion import (perturbation_gaussian,
+                                            perturbation_sine,
+                                            import_density_field)
+from plasmasds_fields.models.profilegen import create_2d_profile
 
 FWHM_TO_SIGMA = 2 * np.sqrt(2 * np.log(2))       # FWHM = 2.3548 sigma
 

@@ -15,7 +15,8 @@ from matplotlib.tri import TriContourSet
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from PIL import Image
 
-from tools.plot import contour_field, slice_field, animate_field
+from plasmasds_fields.tools.plot import (contour_field, slice_field,
+                                         animate_field)
 
 # small grid with different axis lengths, so layouts can be told apart
 R = 6.0 + 0.01 * np.arange(12)          # [m]
