@@ -4,6 +4,29 @@ The plasmasds_fields package is envisioned as a support package that generates a
 > **Status:** early development (alpha), version 0.1.0; the interface may still change between releases.
 > It runs on Linux and Windows with Python 3.11 or newer.
 
+## Installation
+Once the first release is on PyPI:
+
+```bash
+pip install plasmasds_fields
+```
+
+Until then, install it from GitHub (this needs `git`):
+
+```bash
+pip install "plasmasds_fields @ git+https://github.com/plasma-sds/plasmasds_fields"
+```
+
+pip also installs the dependencies: numpy, scipy, matplotlib, h5py, Pillow and `plasmasds_utility`.
+
+For development, clone the repository and install it in editable mode, so changes to the code take effect without reinstalling:
+
+```bash
+git clone https://github.com/plasma-sds/plasmasds_fields
+cd plasmasds_fields
+pip install -e .
+```
+
 ## Running the tests
 The tests use Python's built-in `unittest` framework and run against the installed package. Install it once in editable mode, so changes to the code take effect without reinstalling, then run the tests from the repository root:
 
