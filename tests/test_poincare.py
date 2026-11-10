@@ -281,8 +281,15 @@ class LabelSurfacesTest(unittest.TestCase):
         point_type = surf.points.point_type
         self.assertTrue(is_island(surf))
         self.assertIsNone(surf.errors[0])
-        self.assertEqual((np.count_nonzero(point_type == 1),
-                          np.count_nonzero(point_type == 2)), (100, 100))
+        # points on either side of the centre get that side's type; the two
+        # tip points lie exactly at the centre R, on neither side, and their
+        # assignment depends on floating-point rounding
+        offset = surf.points.r - ISLAND_CENTRE
+        sided = np.abs(offset) > 1e-9
+        self.assertEqual(np.count_nonzero(~sided), 2)
+        np.testing.assert_array_equal(point_type[sided],
+                                      np.where(offset[sided] > 0, 1, 2))
+        self.assertTrue(np.all(np.isin(point_type, [1, 2])))
         self.assertGreater(surf.points.r[point_type == 1].mean(),
                            ISLAND_CENTRE)
         self.assertLess(surf.points.r[point_type == 2].mean(), ISLAND_CENTRE)
@@ -432,8 +439,9 @@ class FilterByTypeTest(unittest.TestCase):
             [(200, [1, 2])])
         self.assertEqual(summary(filter_surfaces_by_type(self.surfaces, [0])),
                          [(20, [0])])
+        n_outer = np.count_nonzero(self.surfaces[1].points.point_type == 1)
         self.assertEqual(summary(filter_surfaces_by_type(self.surfaces, [1])),
-                         [(100, [1])])
+                         [(n_outer, [1])])
 
     def test_none_keeps_all(self):
         self.assertEqual(summary(filter_surfaces_by_type(self.surfaces)),
