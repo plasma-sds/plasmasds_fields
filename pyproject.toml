@@ -40,3 +40,6 @@ path = "src/plasmasds_fields/__init__.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/plasmasds_fields"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "LICENSE"]
