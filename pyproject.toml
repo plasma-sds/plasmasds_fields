@@ -10,6 +10,14 @@ readme = "README.md"
 license = "LGPL-2.1-only"
 license-files = ["LICENSE"]
 requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "h5py>=3.8",
+    "Pillow>=9.4",                    # GIF export in tools.plot.animate_field
+    "plasmasds_utility>=0.1,<0.2",    # test datasets from the plasma-sds data server
+]
 
 [tool.hatch.version]
 path = "src/plasmasds_fields/__init__.py"
