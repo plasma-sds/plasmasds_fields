@@ -8,7 +8,9 @@ import numpy as np
 
 from tests.helpers import get_test_data, TEST_POINCARE
 from w7x.poincare import (Points, FluxSurface, Range, load_w7x_flux_surfaces,
-                          filter_surfaces_by_range, label_surfaces)
+                          filter_surfaces_by_range, label_surfaces,
+                          filter_surfaces_by_type, filter_surfaces_by_radius,
+                          filter_surfaces_by_error)
 
 
 def make_surface(r, z, phi0=0.0, **kwargs):
@@ -383,6 +385,174 @@ class LabelSurfacesTest(unittest.TestCase):
         with self.subTest(case="surfaces as string"):
             with self.assertRaises(TypeError):
                 label_surfaces("surfaces")
+
+
+# ======================================================================
+# Batch 4: filters on labelled surfaces
+# ======================================================================
+
+def hand_labelled(r, z, point_type, radii, errors):
+    """A surface labelled by hand: fit radius (R at Z = 0) and fit error
+    for each point type, None for point types without points."""
+    surf = make_surface(r, z, point_type=point_type)
+    surf.coeffs = np.zeros((3, 3))
+    surf.coeffs[:, -1] = radii
+    surf.errors = list(errors)
+    surf.density = [0, 0, 0]
+    return surf
+
+
+def hand_labelled_surfaces():
+    """A regular surface (radius 6.125, error 0.002) and an island with an
+    inner side (6.25, 0.001) and an outer side (6.375, 0.004); all values
+    are exact in floating point."""
+    regular = hand_labelled([6.125] * 4, [-0.125, 0.0, 0.125, 0.25],
+                            [0, 0, 0, 0], [6.125, 0, 0], [0.002, None, None])
+    island = hand_labelled([6.375, 6.375, 6.25, 6.25], [-0.125, 0.125] * 2,
+                           [1, 1, 2, 2], [0, 6.375, 6.25],
+                           [None, 0.004, 0.001])
+    return [regular, island]
+
+
+def summary(surfaces):
+    """(point count, sorted point types) of each surface."""
+    return [(s.n, sorted(set(s.points.point_type.tolist())))
+            for s in surfaces]
+
+
+class FilterByTypeTest(unittest.TestCase):
+
+    def setUp(self):
+        self.surfaces = label_surfaces([regular_surface(), island_surface()])
+
+    def test_selects_point_types(self):
+        self.assertEqual(
+            summary(filter_surfaces_by_type(self.surfaces, [1, 2])),
+            [(200, [1, 2])])
+        self.assertEqual(summary(filter_surfaces_by_type(self.surfaces, [0])),
+                         [(20, [0])])
+        self.assertEqual(summary(filter_surfaces_by_type(self.surfaces, [1])),
+                         [(100, [1])])
+
+    def test_none_keeps_all(self):
+        self.assertEqual(summary(filter_surfaces_by_type(self.surfaces)),
+                         [(20, [0]), (200, [1, 2])])
+
+    def test_drops_surfaces_without_requested_types(self):
+        kept = filter_surfaces_by_type(self.surfaces, [2])
+        self.assertEqual(len(kept), 1)
+        self.assertTrue(is_island(kept[0]))
+
+
+class FilterByRadiusTest(unittest.TestCase):
+
+    def setUp(self):
+        self.surfaces = hand_labelled_surfaces()
+
+    def test_selects_groups_by_radius(self):
+        self.assertEqual(
+            summary(filter_surfaces_by_radius(self.surfaces, [6.2, 6.3])),
+            [(2, [2])])
+        self.assertEqual(
+            summary(filter_surfaces_by_radius(self.surfaces, [6.0, 6.4])),
+            [(4, [0]), (4, [1, 2])])
+
+    def test_bounds_exclusive(self):
+        # the inner side (6.25) lies exactly on the lower bound
+        self.assertEqual(
+            summary(filter_surfaces_by_radius(self.surfaces, [6.25, 6.4])),
+            [(2, [1])])
+
+    def test_none_keeps_all(self):
+        self.assertEqual(summary(filter_surfaces_by_radius(self.surfaces)),
+                         [(4, [0]), (4, [1, 2])])
+
+
+class FilterByErrorTest(unittest.TestCase):
+
+    def setUp(self):
+        self.surfaces = hand_labelled_surfaces()
+
+    def test_selects_groups_by_error(self):
+        self.assertEqual(
+            summary(filter_surfaces_by_error(self.surfaces, [0.0005, 0.003])),
+            [(4, [0]), (2, [2])])
+
+    def test_bounds_exclusive(self):
+        # the inner side (0.001) lies exactly on the lower bound
+        self.assertEqual(
+            summary(filter_surfaces_by_error(self.surfaces, [0.001, 0.005])),
+            [(4, [0]), (2, [1])])
+
+    def test_none_keeps_all(self):
+        self.assertEqual(summary(filter_surfaces_by_error(self.surfaces)),
+                         [(4, [0]), (4, [1, 2])])
+
+
+class LabelledFiltersTest(unittest.TestCase):
+    """Behaviour shared by the three filters on labelled surfaces; each is
+    called with arguments that remove some points."""
+
+    FILTERS = {
+        "type": (filter_surfaces_by_type, dict(point_types=[1])),
+        "radius": (filter_surfaces_by_radius, dict(R_range=[6.2, 6.3])),
+        "error": (filter_surfaces_by_error,
+                  dict(error_range=[0.0005, 0.003])),
+    }
+
+    def test_returns_copies(self):
+        for name, (function, kwargs) in self.FILTERS.items():
+            with self.subTest(filter=name):
+                surfaces = hand_labelled_surfaces()
+                kept = function(surfaces, **kwargs)
+                self.assertEqual([s.n for s in surfaces], [4, 4])
+                for surf in kept:
+                    self.assertNotIn(surf, surfaces)
+
+    def test_unlabelled_surfaces(self):
+        unlabelled = make_surface([6.2, 6.21], [0.0, 0.1])
+        for name, (function, kwargs) in self.FILTERS.items():
+            for case, surfaces in (
+                    ("unlabelled", [unlabelled]),
+                    ("partially labelled",
+                     hand_labelled_surfaces() + [unlabelled])):
+                with self.subTest(filter=name, case=case):
+                    with self.assertRaisesRegex(ValueError, "not labelled"):
+                        function(surfaces, **kwargs)
+
+    def test_empty_list(self):
+        for name, (function, kwargs) in self.FILTERS.items():
+            with self.subTest(filter=name):
+                self.assertEqual(function([], **kwargs), [])
+
+    def test_accepts_poincare_res_object(self):
+        for name, (function, kwargs) in self.FILTERS.items():
+            with self.subTest(filter=name):
+                flt = types.SimpleNamespace(poincare_res=types.SimpleNamespace(
+                    surfs=hand_labelled_surfaces()))
+                self.assertEqual(
+                    summary(function(flt, **kwargs)),
+                    summary(function(hand_labelled_surfaces(), **kwargs)))
+
+    def test_invalid_arguments(self):
+        cases = [
+            ("point_types outside 0-2", filter_surfaces_by_type,
+             dict(point_types=[3]), ValueError),
+            ("point_types as strings", filter_surfaces_by_type,
+             dict(point_types=["1"]), TypeError),
+            ("reversed R_range", filter_surfaces_by_radius,
+             dict(R_range=[6.3, 6.2]), ValueError),
+            ("non-numeric R_range", filter_surfaces_by_radius,
+             dict(R_range=["a", "b"]), TypeError),
+            ("reversed error_range", filter_surfaces_by_error,
+             dict(error_range=[0.003, 0.001]), ValueError),
+            ("non-numeric error_range", filter_surfaces_by_error,
+             dict(error_range=["a", "b"]), TypeError),
+        ]
+        for name, function, kwargs, exception in cases:
+            with self.subTest(case=name):
+                with self.assertRaises(exception):
+                    function(hand_labelled_surfaces(), **kwargs)
 
 
 if __name__ == "__main__":
