@@ -91,5 +91,16 @@ Most tests use small synthetic inputs. A few use two public test datasets, which
 ### Releases
 Versions are numbered `MAJOR.MINOR.PATCH`. Until 1.0, a release that raises the second number (0.1 to 0.2) may change the interface, and one that raises the third number (0.1.0 to 0.1.1) only fixes bugs. The version is set in `src/plasmasds_fields/__init__.py`.
 
+A release is made when `development` is ready to become the new `master`:
+
+1. On `development`, set the new version in `src/plasmasds_fields/__init__.py`, and move the entries under "Unreleased" in `CHANGELOG.md` to a section for the new version.
+2. Merge `development` into `master` through a pull request.
+3. Tag the merge commit on `master` as `vX.Y.Z`, matching the version, and push the tag:
+
+   ```bash
+   git tag v0.1.0
+   git push origin v0.1.0
+   ```
+
 ## License
 [LGPL-2.1](https://github.com/plasma-sds/plasmasds_fields/blob/master/LICENSE)
