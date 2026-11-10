@@ -89,4 +89,4 @@ python -m unittest -v
 Most tests use small synthetic inputs. A few use two public test datasets, which are downloaded from the plasma-sds data server with `plasmasds_utility` on first use and cached locally; without network access these tests are skipped. The same tests run on GitHub Actions for every push and pull request.
 
 ## License
-[LGPL-2.1](LICENSE)
+[LGPL-2.1](https://github.com/plasma-sds/plasmasds_fields/blob/master/LICENSE)
