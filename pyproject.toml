@@ -34,6 +34,7 @@ classifiers = [
 [project.urls]
 Repository = "https://github.com/plasma-sds/plasmasds_fields"
 Issues = "https://github.com/plasma-sds/plasmasds_fields/issues"
+Changelog = "https://github.com/plasma-sds/plasmasds_fields/blob/master/CHANGELOG.md"
 
 [tool.hatch.version]
 path = "src/plasmasds_fields/__init__.py"
@@ -42,4 +43,4 @@ path = "src/plasmasds_fields/__init__.py"
 packages = ["src/plasmasds_fields"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src", "tests", "README.md", "LICENSE"]
+include = ["src", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
