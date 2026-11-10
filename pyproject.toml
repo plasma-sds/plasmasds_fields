@@ -1,0 +1,18 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "plasmasds_fields"
+dynamic = ["version"]
+description = "Plasma field and magnetic geometry inputs for the plasma-sds synthetic diagnostics."
+readme = "README.md"
+license = "LGPL-2.1-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+
+[tool.hatch.version]
+path = "src/plasmasds_fields/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/plasmasds_fields"]
