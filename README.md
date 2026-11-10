@@ -76,7 +76,9 @@ R, Z, density = make_regular_density_field(points["r"], points["z"],
 contour_field(R, Z, density, levels=100)
 ```
 
-## Running the tests
+## Development
+Work happens on feature branches, which are merged into `development` through pull requests; `master` holds released code. Planned work is tracked as [GitHub issues](https://github.com/plasma-sds/plasmasds_fields/issues).
+
 The tests use Python's built-in `unittest` framework and run against the installed package. Install it once in editable mode, so changes to the code take effect without reinstalling, then run the tests from the repository root:
 
 ```bash
