@@ -18,6 +18,22 @@ dependencies = [
     "Pillow>=9.4",                    # GIF export in tools.plot.animate_field
     "plasmasds_utility>=0.1,<0.2",    # test datasets from the plasma-sds data server
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+Repository = "https://github.com/plasma-sds/plasmasds_fields"
+Issues = "https://github.com/plasma-sds/plasmasds_fields/issues"
 
 [tool.hatch.version]
 path = "src/plasmasds_fields/__init__.py"
