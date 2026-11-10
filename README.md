@@ -88,5 +88,8 @@ python -m unittest -v
 
 Most tests use small synthetic inputs. A few use two public test datasets, which are downloaded from the plasma-sds data server with `plasmasds_utility` on first use and cached locally; without network access these tests are skipped. The same tests run on GitHub Actions for every push and pull request.
 
+### Releases
+Versions are numbered `MAJOR.MINOR.PATCH`. Until 1.0, a release that raises the second number (0.1 to 0.2) may change the interface, and one that raises the third number (0.1.0 to 0.1.1) only fixes bugs. The version is set in `src/plasmasds_fields/__init__.py`.
+
 ## License
 [LGPL-2.1](https://github.com/plasma-sds/plasmasds_fields/blob/master/LICENSE)
