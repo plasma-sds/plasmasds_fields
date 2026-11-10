@@ -39,6 +39,43 @@ pip install -e .
 | `plasmasds_fields.models.motion` | Time-dependent perturbations of 2-D fields (Gaussian filaments, sine waves), with HDF5 output |
 | `plasmasds_fields.models.profilegen` | Generic 2-D background density profiles |
 
+## Usage
+A 2-D density map of the W7-X edge, from Poincaré flux surfaces and a radial density profile. The example uses the package's public example data, which `plasmasds_utility` downloads on first use and caches locally:
+
+```python
+import numpy as np
+from plasmasds_utility import DataClient
+
+from plasmasds_fields.w7x.poincare import (load_w7x_flux_surfaces,
+                                           filter_surfaces_by_range,
+                                           label_surfaces)
+from plasmasds_fields.w7x.fields import (add_density, extract_points,
+                                         make_regular_density_field)
+from plasmasds_fields.tools.interpolate import ProfileInterpolator1D
+from plasmasds_fields.tools.plot import contour_field
+
+# public example data: W7-X Poincaré surfaces and a radial density profile
+data = DataClient("plasmasds_fields")
+surfaces = load_w7x_flux_surfaces(
+    data.get("test_dataset/test_poincare.xml", private=False))
+profile = np.loadtxt(data.get("test_dataset/test_profile.txt", private=False))
+
+# select the edge region and label the island and non-island points
+surfaces = filter_surfaces_by_range(surfaces, r_range=[6.1, 6.3],
+                                    z_range=[-0.2, 0.2])
+surfaces = label_surfaces(surfaces)
+
+# assign each surface the density of the profile at its radius
+density_function = ProfileInterpolator1D(profile[0], profile[1])
+surfaces = add_density(surfaces, density_function)
+
+# interpolate onto a regular (R, Z) grid and plot the 2-D density map
+points = extract_points(surfaces)
+R, Z, density = make_regular_density_field(points["r"], points["z"],
+                                           points["density"])
+contour_field(R, Z, density, levels=100)
+```
+
 ## Running the tests
 The tests use Python's built-in `unittest` framework and run against the installed package. Install it once in editable mode, so changes to the code take effect without reinstalling, then run the tests from the repository root:
 
