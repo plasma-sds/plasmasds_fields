@@ -28,8 +28,5 @@ jobs:
           pip install .
 
       - name: Run tests
-        # src layout: make the package importable until it is installed
-        # with pip (pyproject.toml, #47)
-        env:
-          PYTHONPATH: src
+        # with the src layout, the tests import the installed package
         run: python -m unittest discover -v
