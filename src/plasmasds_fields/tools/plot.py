@@ -19,9 +19,10 @@ equal_aspect=True, title="W7X 2D density plot", contour_lines=False, save_image=
     Contour-plot a scalar field on the (R, Z) plane.
 
     Accepts either a regular grid (as produced by
-    :func:`w7x.fields.make_regular_density_field`) or scattered data (as
-    produced by :func:`w7x.fields.extract_points`); the layout is detected from
-    ``field.ndim``:
+    :func:`plasmasds_fields.w7x.fields.make_regular_density_field`) or
+    scattered data (as produced by
+    :func:`plasmasds_fields.w7x.fields.extract_points`); the layout is detected
+    from ``field.ndim``:
 
     * **Regular**: ``R`` and ``Z`` are 1-D axes of length NR and NZ, and
       ``field`` is 2-D with shape (NZ, NR) or (NR, NZ). The layout is detected
@@ -205,9 +206,9 @@ def slice_field(R, Z, t, field, field_name,
     * ``at_z``: the (t, R) plane (time evolution at fixed Z).
 
     The axis layout of ``field`` is detected as in :func:`animate_field`, e.g.
-    (t, Z, R) from :meth:`models.hesel.HESEL.extract_field` or (t, R, Z) from
-    :mod:`models.motion`. Pass ``axis_order`` when the axis lengths are
-    ambiguous.
+    (t, Z, R) from :meth:`plasmasds_fields.models.hesel.HESEL.extract_field` or
+    (t, R, Z) from :mod:`plasmasds_fields.models.motion`. Pass ``axis_order``
+    when the axis lengths are ambiguous.
 
     Parameters
     ----------
@@ -494,12 +495,12 @@ def animate_field(R, Z, t, field, field_name, cbar_label, save_path,
     The axis layout is detected by matching the lengths of ``R``, ``Z`` and
     ``t`` against the field shape, so both layouts used in this project work:
 
-    * HESEL (:meth:`models.hesel.HESEL.extract_field`): (t, Z, R); pass
-      ``hesel.R_axis``, ``hesel.Z_axis``, ``hesel.time_axis``.
-    * Motion (:func:`models.motion.perturbation_gaussian`,
-      :func:`models.motion.perturbation_sine`,
-      :func:`models.motion.import_density_field`): (t, R, Z); pass
-      ``data["R"]``, ``data["Z"]``, ``data["t"]``, ``data["field"]``.
+    * HESEL (:meth:`plasmasds_fields.models.hesel.HESEL.extract_field`):
+      (t, Z, R); pass ``hesel.R_axis``, ``hesel.Z_axis``, ``hesel.time_axis``.
+    * Motion (:func:`plasmasds_fields.models.motion.perturbation_gaussian`,
+      :func:`plasmasds_fields.models.motion.perturbation_sine`,
+      :func:`plasmasds_fields.models.motion.import_density_field`): (t, R, Z);
+      pass ``data["R"]``, ``data["Z"]``, ``data["t"]``, ``data["field"]``.
 
     Pass ``axis_order`` when the axis lengths are ambiguous (e.g. NR == NZ).
 

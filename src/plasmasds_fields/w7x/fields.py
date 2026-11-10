@@ -13,22 +13,22 @@ def add_density(flt, density_function, keep_unusable=False):
 
     Each point-type group of a surface gets the density of the profile at the
     group's radius, the R of its polynomial fit at Z = 0 (see
-    :func:`w7x.poincare.label_surfaces`). Unlabelled surfaces are labelled
-    first. Point groups without a usable density are then removed, so the
-    result can be passed directly to :func:`extract_points`.
+    :func:`plasmasds_fields.w7x.poincare.label_surfaces`). Unlabelled surfaces
+    are labelled first. Point groups without a usable density are then removed,
+    so the result can be passed directly to :func:`extract_points`.
 
     Parameters
     ----------
     flt : list of FluxSurface or field-line-tracer result
-        Either a list of :class:`~w7x.poincare.FluxSurface` instances or an
-        object exposing ``poincare_res.surfs``.
+        Either a list of :class:`~plasmasds_fields.w7x.poincare.FluxSurface`
+        instances or an object exposing ``poincare_res.surfs``.
     density_function : callable
         Returns the density [m^-3] at a radius R [m], e.g. a
-        :class:`tools.interpolate.ProfileInterpolator1D` instance (pass the
-        object itself) or a ``scipy.interpolate.interp1d`` interpolator. Note
-        that ``ProfileInterpolator1D`` extrapolates linearly outside its
-        position range, so surfaces outside the profile get extrapolated
-        densities.
+        :class:`plasmasds_fields.tools.interpolate.ProfileInterpolator1D`
+        instance (pass the object itself) or a ``scipy.interpolate.interp1d``
+        interpolator. Note that ``ProfileInterpolator1D`` extrapolates linearly
+        outside its position range, so surfaces outside the profile get
+        extrapolated densities.
     keep_unusable : bool, default False
         If False, point groups whose density is not positive (zero, negative or
         NaN) are removed, and surfaces left without points are dropped. If
@@ -53,8 +53,8 @@ def add_density(flt, density_function, keep_unusable=False):
     -----
     UserWarning
         If some surfaces are not labelled yet;
-        :func:`w7x.poincare.label_surfaces` is then run with its default
-        parameters.
+        :func:`plasmasds_fields.w7x.poincare.label_surfaces` is then run with
+        its default parameters.
     """
     
     pc._check_surfaces(flt)
