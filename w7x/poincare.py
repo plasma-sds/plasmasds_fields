@@ -627,6 +627,8 @@ def _check_label_window(surfs):
     """
     Warn if any surface point has R < R_MIN_LABEL or |Z| > Z_MAX_LABEL.
     """
+    if not surfs:
+        return
     r = np.concatenate([s.points.r for s in surfs])
     z = np.concatenate([s.points.z for s in surfs])
     n_r = np.count_nonzero(r < R_MIN_LABEL)
