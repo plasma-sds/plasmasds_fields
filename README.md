@@ -27,6 +27,18 @@ cd plasmasds_fields
 pip install -e .
 ```
 
+## Package structure
+
+| Module | Contents |
+|---|---|
+| `plasmasds_fields.w7x.poincare` | W7-X Poincaré flux surfaces: loading field-line tracer results, selecting surfaces, labelling island and non-island points, plotting |
+| `plasmasds_fields.w7x.fields` | Density allocation on the flux surfaces, and conversion to scattered and regular 2-D density fields |
+| `plasmasds_fields.tools.interpolate` | `ProfileInterpolator1D`: a 1-D profile interpolator with editable datapoints |
+| `plasmasds_fields.tools.plot` | Contour plots, slices and GIF animations of 2-D and time-dependent (R, Z) fields |
+| `plasmasds_fields.models.hesel` | Reading and extending HESEL simulation output |
+| `plasmasds_fields.models.motion` | Time-dependent perturbations of 2-D fields (Gaussian filaments, sine waves), with HDF5 output |
+| `plasmasds_fields.models.profilegen` | Generic 2-D background density profiles |
+
 ## Running the tests
 The tests use Python's built-in `unittest` framework and run against the installed package. Install it once in editable mode, so changes to the code take effect without reinstalling, then run the tests from the repository root:
 
