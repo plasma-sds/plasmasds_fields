@@ -10,7 +10,8 @@ from tests.helpers import get_test_data, TEST_POINCARE
 from w7x.poincare import (Points, FluxSurface, Range, load_w7x_flux_surfaces,
                           filter_surfaces_by_range, label_surfaces,
                           filter_surfaces_by_type, filter_surfaces_by_radius,
-                          filter_surfaces_by_error)
+                          filter_surfaces_by_error, _check_surfaces,
+                          _check_scalar, _check_range)
 
 
 def make_surface(r, z, phi0=0.0, **kwargs):
@@ -553,6 +554,114 @@ class LabelledFiltersTest(unittest.TestCase):
             with self.subTest(case=name):
                 with self.assertRaises(exception):
                     function(hand_labelled_surfaces(), **kwargs)
+
+
+# ======================================================================
+# Batch 5: input validation
+# ======================================================================
+
+class CheckSurfacesTest(unittest.TestCase):
+
+    def test_accepts_list_and_poincare_res_object(self):
+        surfaces = [regular_surface(), island_surface()]
+        flt = types.SimpleNamespace(
+            poincare_res=types.SimpleNamespace(surfs=surfaces))
+        for name, value in (("list", surfaces), ("empty list", []),
+                            ("poincare_res object", flt)):
+            with self.subTest(input=name):
+                _check_surfaces(value)        # does not raise
+
+    def test_rejects_other_input(self):
+        for value in ("surfaces", 3.0, None):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(TypeError, "flt must be a list"):
+                    _check_surfaces(value)
+
+    def test_rejects_wrong_elements(self):
+        with self.assertRaisesRegex(TypeError, "element 1 is int"):
+            _check_surfaces([regular_surface(), 5])
+
+    def test_rejects_non_list_surfs(self):
+        flt = types.SimpleNamespace(
+            poincare_res=types.SimpleNamespace(surfs=(regular_surface(),)))
+        with self.assertRaisesRegex(TypeError, "got tuple"):
+            _check_surfaces(flt)
+
+
+class CheckScalarTest(unittest.TestCase):
+
+    def test_none_passes(self):
+        _check_scalar("x", None, integer=True, min_value=0, domain=[1, 2])
+
+    def test_numeric_types(self):
+        for value in (3, 2.5, np.int64(3), np.float32(2.5)):
+            with self.subTest(value=value):
+                _check_scalar("x", value)
+        with self.assertRaisesRegex(TypeError, "x must be numeric"):
+            _check_scalar("x", "2.5")
+
+    def test_integer(self):
+        _check_scalar("n", 3, integer=True)
+        _check_scalar("n", np.int32(3), integer=True)
+        with self.assertRaisesRegex(TypeError, "n must be an integer"):
+            _check_scalar("n", 3.0, integer=True)
+
+    def test_bounds(self):
+        _check_scalar("x", 0, min_value=0, max_value=1)   # inclusive
+        _check_scalar("x", 1, min_value=0, max_value=1)
+        cases = [(dict(min_value=0), -0.1, "x must be >= 0"),
+                 (dict(max_value=1), 1.1, "x must be <= 1"),
+                 (dict(min_value=0, inclusive_min=False), 0, "x must be > 0"),
+                 (dict(max_value=1, inclusive_max=False), 1, "x must be < 1")]
+        for kwargs, value, message in cases:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    _check_scalar("x", value, **kwargs)
+
+    def test_domain(self):
+        _check_scalar("t", 2, domain=[0, 1, 2])
+        with self.assertRaisesRegex(ValueError,
+                                    r"t must be one of \[0, 1, 2\]"):
+            _check_scalar("t", 3, domain=[0, 1, 2])
+
+
+class CheckRangeTest(unittest.TestCase):
+
+    def test_none_passes(self):
+        _check_range("r_range", None, integer=True, allow_negative=False)
+
+    def test_accepts_list_tuple_ndarray(self):
+        for value in ([6.1, 6.3], (6.1, 6.3), np.array([6.1, 6.3])):
+            with self.subTest(type=type(value).__name__):
+                _check_range("r_range", value)
+
+    def test_wrong_length(self):
+        for value in ([6.1], [6.1, 6.2, 6.3], "ab"):
+            with self.subTest(value=value):
+                with self.assertRaises(ValueError) as context:
+                    _check_range("r_range", value)
+                # a single, readable message (it used to be a tuple)
+                self.assertEqual(len(context.exception.args), 1)
+                self.assertIn("r_range must be a two-element sequence "
+                              "[start, end]", context.exception.args[0])
+
+    def test_start_not_below_end(self):
+        for value in ([6.2, 6.2], [6.3, 6.1]):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(ValueError, "start < end"):
+                    _check_range("r_range", value)
+
+    def test_non_numeric_and_integer(self):
+        with self.assertRaisesRegex(TypeError, "elements must be numeric"):
+            _check_range("r_range", ["a", "b"])
+        _check_range("surf_range", [0, 5], integer=True)
+        with self.assertRaisesRegex(TypeError, "elements must be integers"):
+            _check_range("surf_range", [0.0, 5.0], integer=True)
+
+    def test_allow_negative(self):
+        _check_range("z_range", [-0.5, 0.5])
+        with self.assertRaisesRegex(ValueError, "elements must be >= 0"):
+            _check_range("density_range", [-1.0, 1e19], allow_negative=False)
 
 
 if __name__ == "__main__":
