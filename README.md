@@ -5,19 +5,18 @@ The plasmasds_fields package is envisioned as a support package that generates a
 > It runs on Linux and Windows with Python 3.11 or newer.
 
 ## Installation
-Once the first release is on PyPI:
 
 ```bash
 pip install plasmasds_fields
 ```
 
-Until then, install it from GitHub (this needs `git`):
+pip also installs the dependencies: numpy, scipy, matplotlib, h5py, Pillow and `plasmasds_utility`.
+
+The latest development version, from GitHub (this needs `git`):
 
 ```bash
-pip install "plasmasds_fields @ git+https://github.com/plasma-sds/plasmasds_fields"
+pip install "plasmasds_fields @ git+https://github.com/plasma-sds/plasmasds_fields@development"
 ```
-
-pip also installs the dependencies: numpy, scipy, matplotlib, h5py, Pillow and `plasmasds_utility`.
 
 For development, clone the repository and install it in editable mode, so changes to the code take effect without reinstalling:
 
@@ -76,6 +75,9 @@ R, Z, density = make_regular_density_field(points["r"], points["z"],
 contour_field(R, Z, density, levels=100)
 ```
 
+### Magnetic islands
+`label_surfaces` handles the O-point geometry of magnetic islands: each closed flux surface around an island's O-point is recognised as an island surface and split into an outer and an inner side, each with its own fit. Points near the island tips are assigned to the side whose fit is closer, and `add_density` then gives each side the density of the profile at its own radius. The labelling is validated for points with R >= 6.1 m and |Z| <= 1 m; for points outside this window `label_surfaces` warns that the labelling and the densities may be inaccurate.
+
 ## Development
 Work happens on feature branches, which are merged into `development` through pull requests; `master` holds released code. Planned work is tracked as [GitHub issues](https://github.com/plasma-sds/plasmasds_fields/issues).
 
@@ -101,6 +103,8 @@ A release is made when `development` is ready to become the new `master`:
    git tag v0.1.0
    git push origin v0.1.0
    ```
+
+   Pushing the tag starts the publish workflow (`.github/workflows/publish.yml`): it checks that the tag matches the version and is on `master`, runs the tests and builds the package, and uploads it to PyPI once an owner approves the deployment.
 
 ## License
 [LGPL-2.1](https://github.com/plasma-sds/plasmasds_fields/blob/master/LICENSE)
