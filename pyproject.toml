@@ -1,0 +1,46 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "plasmasds_fields"
+dynamic = ["version"]
+description = "Plasma field and magnetic geometry inputs for the plasma-sds synthetic diagnostics."
+readme = "README.md"
+license = "LGPL-2.1-only"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.10",
+    "matplotlib>=3.7",
+    "h5py>=3.8",
+    "Pillow>=9.4",                    # GIF export in tools.plot.animate_field
+    "plasmasds_utility>=0.1,<0.2",    # test datasets from the plasma-sds data server
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.urls]
+Repository = "https://github.com/plasma-sds/plasmasds_fields"
+Issues = "https://github.com/plasma-sds/plasmasds_fields/issues"
+Changelog = "https://github.com/plasma-sds/plasmasds_fields/blob/master/CHANGELOG.md"
+
+[tool.hatch.version]
+path = "src/plasmasds_fields/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/plasmasds_fields"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src", "tests", "README.md", "CHANGELOG.md", "LICENSE"]
