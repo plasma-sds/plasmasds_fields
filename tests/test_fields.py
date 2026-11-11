@@ -3,9 +3,11 @@ import unittest
 
 import numpy as np
 
-from w7x.fields import (add_density, filter_surfaces_by_density,
-                        extract_points, make_regular_density_field)
-from w7x.poincare import FluxSurface, label_surfaces
+from plasmasds_fields.w7x.fields import (add_density,
+                                         filter_surfaces_by_density,
+                                         extract_points,
+                                         make_regular_density_field)
+from plasmasds_fields.w7x.poincare import FluxSurface, label_surfaces
 
 
 def make_surface(r, z, point_type=0):

@@ -6,7 +6,7 @@ import unittest
 
 import numpy as np
 
-from models.hesel import HESEL, expand_hesel
+from plasmasds_fields.models.hesel import HESEL, expand_hesel
 from tests.helpers import (HESEL_R, HESEL_Z, HESEL_T, HESEL_FIELDS,
                            hesel_values, write_hesel_file)
 

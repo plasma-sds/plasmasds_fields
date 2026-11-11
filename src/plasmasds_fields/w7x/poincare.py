@@ -102,7 +102,8 @@ class FluxSurface(object):
         RMS fit error per point type [m], None for point types without points
         (``[None]`` before labelling).
     density : list of float
-        Density per point type [m^-3], set by :func:`w7x.fields.add_density`.
+        Density per point type [m^-3], set by
+        :func:`plasmasds_fields.w7x.fields.add_density`.
     """
 
     def __init__(self, x1, x2, x3, phi0, 

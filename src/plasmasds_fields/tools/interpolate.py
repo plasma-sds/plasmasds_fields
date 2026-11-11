@@ -14,7 +14,7 @@ class ProfileInterpolator1D:
     (:meth:`correct_datapoints`) or added (:meth:`add_datapoints`), and
     :meth:`reset` restores the original data. Calling the instance interpolates
     the profile, so it can be passed directly as ``density_function`` to
-    :func:`w7x.fields.add_density`.
+    :func:`plasmasds_fields.w7x.fields.add_density`.
 
     Parameters
     ----------

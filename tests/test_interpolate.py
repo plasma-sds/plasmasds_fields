@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from tests.helpers import get_test_data, TEST_PROFILE
-from tools.interpolate import ProfileInterpolator1D
+from plasmasds_fields.tools.interpolate import ProfileInterpolator1D
 
 # unsorted, integer-valued profile; interpolated values are exact
 POSITION = [6.30, 6.10, 6.20, 6.25]

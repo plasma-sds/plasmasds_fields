@@ -10,8 +10,8 @@ def _field_rz(R, Z, field):
     Return ``field`` in (NR, NZ) layout.
 
     Accepts (NR, NZ), and (NZ, NR) as produced by
-    w7x.fields.make_regular_density_field or HESEL snapshots. A square field
-    (NR == NZ) is taken as (NR, NZ).
+    plasmasds_fields.w7x.fields.make_regular_density_field or HESEL snapshots.
+    A square field (NR == NZ) is taken as (NR, NZ).
     """
     field = np.asarray(field)
     if field.shape == (len(R), len(Z)):
@@ -42,8 +42,8 @@ def perturbation_gaussian(R, Z, field,
         Z coordinates of the grid [m].
     field : numpy.ndarray, shape (NR, NZ) or (NZ, NR)
         Background density field [m^-3]. The (NZ, NR) layout of
-        :func:`w7x.fields.make_regular_density_field` is transposed
-        automatically; a square field is taken as (NR, NZ).
+        :func:`plasmasds_fields.w7x.fields.make_regular_density_field` is
+        transposed automatically; a square field is taken as (NR, NZ).
     dt : float
         Time step [s].
     r_trajectory : list of array_like, length n_filaments
@@ -210,8 +210,8 @@ def perturbation_sine(R, Z, field, dt, nt, r_trajectory, perturbation_speed,
         Z coordinates of the grid [m].
     field : numpy.ndarray, shape (NR, NZ) or (NZ, NR)
         Background density field [m^-3]. The (NZ, NR) layout of
-        :func:`w7x.fields.make_regular_density_field` is transposed
-        automatically; a square field is taken as (NR, NZ).
+        :func:`plasmasds_fields.w7x.fields.make_regular_density_field` is
+        transposed automatically; a square field is taken as (NR, NZ).
     dt : float
         Time step [s].
     nt : int

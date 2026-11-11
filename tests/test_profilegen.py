@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from models.profilegen import create_2d_profile
+from plasmasds_fields.models.profilegen import create_2d_profile
 
 
 def tanh_profile(R, edge_value, SOL_value, g, R_LCFS):
